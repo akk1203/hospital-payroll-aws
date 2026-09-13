@@ -38,11 +38,20 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       CorsConfiguration:
-        AllowOrigins: ["*"]
-        AllowHeaders: ["Authorization", "Content-Type"]
-        AllowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+        AllowOrigins:
+          - "*"
+        AllowHeaders:
+          - Authorization
+          - Content-Type
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        MaxAge: 86400
       Auth:
-        DefaultAuthorizer: CognitoJwt
         Authorizers:
           CognitoJwt:
             IdentitySource: $request.header.Authorization
@@ -302,19 +311,50 @@ Resources:
               Resource:
                 - !Sub ${PayslipsTable.Arn}/index/*
       Events:
-        Proxy:
+        ProxyGet:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
             Path: /{proxy+}
-            Method: ANY
+            Method: GET
+            Auth:
+              Authorizer: CognitoJwt
             PayloadFormatVersion: "2.0"
-        Root:
+        ProxyPost:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
-            Path: /
-            Method: ANY
+            Path: /{proxy+}
+            Method: POST
+            Auth:
+              Authorizer: CognitoJwt
+            PayloadFormatVersion: "2.0"
+        ProxyPut:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /{proxy+}
+            Method: PUT
+            Auth:
+              Authorizer: CognitoJwt
+            PayloadFormatVersion: "2.0"
+        ProxyPatch:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /{proxy+}
+            Method: PATCH
+            Auth:
+              Authorizer: CognitoJwt
+            PayloadFormatVersion: "2.0"
+        ProxyDelete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /{proxy+}
+            Method: DELETE
+            Auth:
+              Authorizer: CognitoJwt
             PayloadFormatVersion: "2.0"
         PublicConfig:
           Type: HttpApi
