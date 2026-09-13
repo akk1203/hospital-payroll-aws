@@ -24,7 +24,6 @@ Parameters:
 
 Conditions:
   HasGoogle: !Not [!Equals [!Ref GoogleClientId, ""]]
-  NotHasGoogle: !Equals [!Ref GoogleClientId, ""]
   IsProd: !Equals [!Ref EnvironmentName, prod]
 
 Globals:
@@ -46,13 +45,12 @@ Resources:
         DefaultAuthorizer: CognitoJwt
         Authorizers:
           CognitoJwt:
-            IdentitySource: "$request.header.Authorization"
+            IdentitySource: $request.header.Authorization
             JwtConfiguration:
               issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}
               audience:
                 - !Ref ApiUserPoolClient
-                - !If [HasGoogle, !Ref UiUserPoolClientGoogle, !Ref UiUserPoolClient]
-        AddDefaultAuthorizerToCorsPreflight: false
+                - !Ref UiUserPoolClient
 
   EmployeesTable:
     Type: AWS::DynamoDB::Table
@@ -252,7 +250,6 @@ Resources:
 
   UiUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
-    Condition: NotHasGoogle
     DependsOn:
       - UserPoolDomain
     Properties:
@@ -267,26 +264,6 @@ Resources:
       LogoutURLs:
         - !Sub https://${UiDistribution.DomainName}/
       SupportedIdentityProviders: [COGNITO]
-      PreventUserExistenceErrors: ENABLED
-
-  UiUserPoolClientGoogle:
-    Type: AWS::Cognito::UserPoolClient
-    Condition: HasGoogle
-    DependsOn:
-      - UserPoolDomain
-      - GoogleIdentityProvider
-    Properties:
-      UserPoolId: !Ref UserPool
-      GenerateSecret: false
-      AllowedOAuthFlowsUserPoolClient: true
-      AllowedOAuthFlows: [implicit]
-      AllowedOAuthScopes: [openid, email, profile]
-      CallbackURLs:
-        - !Sub https://${UiDistribution.DomainName}/
-        - !Sub https://${UiDistribution.DomainName}/index.html
-      LogoutURLs:
-        - !Sub https://${UiDistribution.DomainName}/
-      SupportedIdentityProviders: [COGNITO, Google]
       PreventUserExistenceErrors: ENABLED
 
   PayrollFunction:
@@ -310,7 +287,7 @@ Resources:
           COGNITO_CLIENT_SECRET: !GetAtt ApiUserPoolClient.ClientSecret
           COGNITO_USER_POOL_ID: !Ref UserPool
           COGNITO_HOSTED_UI_DOMAIN: !Sub https://${CognitoDomainPrefix}.auth.${AWS::Region}.amazoncognito.com
-          COGNITO_HOSTED_UI_CLIENT_ID: !If [HasGoogle, !Ref UiUserPoolClientGoogle, !Ref UiUserPoolClient]
+          COGNITO_HOSTED_UI_CLIENT_ID: !Ref UiUserPoolClient
           COGNITO_GOOGLE_ENABLED: !If [HasGoogle, "true", "false"]
           UI_ORIGIN: !Sub https://${UiDistribution.DomainName}
           DEMO_RESET_ENABLED: !If [IsProd, "false", !Ref DemoResetEnabled]
