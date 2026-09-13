@@ -12,23 +12,11 @@ phases:
       - mvn -f api/pom.xml -DskipTests package
   post_build:
     commands:
-      - |
-        sam deploy \
-          --template-file template.yaml \
-          --stack-name "$APP_STACK_NAME" \
-          --resolve-s3 \
-          --capabilities CAPABILITY_IAM \
-          --no-confirm-changeset \
-          --no-fail-on-empty-changeset \
-          --parameter-overrides \
-            EnvironmentName="$ENVIRONMENT_NAME" \
-            CognitoDomainPrefix="$COGNITO_DOMAIN_PREFIX" \
-            GoogleClientId="$GOOGLE_CLIENT_ID" \
-            GoogleClientSecret="$GOOGLE_CLIENT_SECRET"
+      - sam deploy --template-file template.yaml --stack-name "$APP_STACK_NAME" --resolve-s3 --capabilities CAPABILITY_IAM --no-confirm-changeset --no-fail-on-empty-changeset --parameter-overrides "EnvironmentName=$ENVIRONMENT_NAME" "CognitoDomainPrefix=$COGNITO_DOMAIN_PREFIX" "GoogleClientId=$GOOGLE_CLIENT_ID" "GoogleClientSecret=$GOOGLE_CLIENT_SECRET"
       - API_URL=$(aws cloudformation describe-stacks --stack-name "$APP_STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)
       - UI_BUCKET=$(aws cloudformation describe-stacks --stack-name "$APP_STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='UiBucketName'].OutputValue" --output text)
       - UI_URL=$(aws cloudformation describe-stacks --stack-name "$APP_STACK_NAME" --query "Stacks[0].Outputs[?OutputKey=='UiUrl'].OutputValue" --output text)
       - printf 'window.PAYROLL_API = "%s/api";\n' "$API_URL" > ui/config.js
       - aws s3 sync ui/ "s3://$UI_BUCKET" --delete --exclude "*.md"
-      - echo "Test stage API: $API_URL"
-      - echo "Test stage UI:  $UI_URL"
+      - echo Test stage API $API_URL
+      - echo Test stage UI $UI_URL
