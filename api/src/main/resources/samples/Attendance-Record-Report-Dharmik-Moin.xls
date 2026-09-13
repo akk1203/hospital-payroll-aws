@@ -1,0 +1,196 @@
+<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Worksheet ss:Name="Attendance Record Report">
+  <Table>
+   <Row>
+    <Cell><Data ss:Type="String">Attendance Record Report</Data></Cell>
+   </Row>
+   <Row>
+    <Cell><Data ss:Type="String">Att. Time 2026-08-01 ~ 2026-08-31</Data></Cell>
+    <Cell ss:Index="33"><Data ss:Type="String">Tabulation 2026-08-31</Data></Cell>
+   </Row>
+   <Row>
+    <Cell><Data ss:Type="String">ID</Data></Cell>
+    <Cell><Data ss:Type="Number">1</Data></Cell>
+    <Cell><Data ss:Type="Number">2</Data></Cell>
+    <Cell><Data ss:Type="Number">3</Data></Cell>
+    <Cell><Data ss:Type="Number">4</Data></Cell>
+    <Cell><Data ss:Type="Number">5</Data></Cell>
+    <Cell><Data ss:Type="Number">6</Data></Cell>
+    <Cell><Data ss:Type="Number">7</Data></Cell>
+    <Cell><Data ss:Type="Number">8</Data></Cell>
+    <Cell><Data ss:Type="Number">9</Data></Cell>
+    <Cell><Data ss:Type="Number">10</Data></Cell>
+    <Cell><Data ss:Type="Number">11</Data></Cell>
+    <Cell><Data ss:Type="Number">12</Data></Cell>
+    <Cell><Data ss:Type="Number">13</Data></Cell>
+    <Cell><Data ss:Type="Number">14</Data></Cell>
+    <Cell><Data ss:Type="Number">15</Data></Cell>
+    <Cell><Data ss:Type="Number">16</Data></Cell>
+    <Cell><Data ss:Type="Number">17</Data></Cell>
+    <Cell><Data ss:Type="Number">18</Data></Cell>
+    <Cell><Data ss:Type="Number">19</Data></Cell>
+    <Cell><Data ss:Type="Number">20</Data></Cell>
+    <Cell><Data ss:Type="Number">21</Data></Cell>
+    <Cell><Data ss:Type="Number">22</Data></Cell>
+    <Cell><Data ss:Type="Number">23</Data></Cell>
+    <Cell><Data ss:Type="Number">24</Data></Cell>
+    <Cell><Data ss:Type="Number">25</Data></Cell>
+    <Cell><Data ss:Type="Number">26</Data></Cell>
+    <Cell><Data ss:Type="Number">27</Data></Cell>
+    <Cell><Data ss:Type="Number">28</Data></Cell>
+    <Cell><Data ss:Type="Number">29</Data></Cell>
+    <Cell><Data ss:Type="Number">30</Data></Cell>
+    <Cell><Data ss:Type="Number">31</Data></Cell>
+    <Cell><Data ss:Type="String">Name:</Data></Cell>
+    <Cell><Data ss:Type="String">Dept.:</Data></Cell>
+   </Row>
+   <Row>
+    <Cell><Data ss:Type="Number">6</Data></Cell>
+    <Cell><Data ss:Type="String">21:17</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">10:41</Data></Cell>
+    <Cell><Data ss:Type="String">10:28</Data></Cell>
+    <Cell><Data ss:Type="String">10:55</Data></Cell>
+    <Cell><Data ss:Type="String">10:33</Data></Cell>
+    <Cell><Data ss:Type="String">10:19</Data></Cell>
+    <Cell><Data ss:Type="String">21:05</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">10:47</Data></Cell>
+    <Cell><Data ss:Type="String">10:22</Data></Cell>
+    <Cell><Data ss:Type="String">10:36</Data></Cell>
+    <Cell><Data ss:Type="String">10:29</Data></Cell>
+    <Cell><Data ss:Type="String">21:30</Data></Cell>
+    <Cell><Data ss:Type="String">10:34</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">10:22</Data></Cell>
+    <Cell><Data ss:Type="String">10:30</Data></Cell>
+    <Cell><Data ss:Type="String">10:28</Data></Cell>
+    <Cell><Data ss:Type="String">10:31</Data></Cell>
+    <Cell><Data ss:Type="String">10:49</Data></Cell>
+    <Cell><Data ss:Type="String">10:33</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">10:27</Data></Cell>
+    <Cell><Data ss:Type="String">10:32</Data></Cell>
+    <Cell><Data ss:Type="String">10:37</Data></Cell>
+    <Cell><Data ss:Type="String">10:27</Data></Cell>
+    <Cell><Data ss:Type="String">10:31</Data></Cell>
+    <Cell><Data ss:Type="String">10:32</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">10:36</Data></Cell>
+    <Cell><Data ss:Type="String">Name: DrDHARMIK</Data></Cell>
+    <Cell><Data ss:Type="String">Company</Data></Cell>
+   </Row>
+   <Row>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">21:19</Data></Cell>
+    <Cell><Data ss:Type="String">21:44</Data></Cell>
+    <Cell><Data ss:Type="String">21:08</Data></Cell>
+    <Cell><Data ss:Type="String">22:01</Data></Cell>
+    <Cell><Data ss:Type="String">21:26</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">21:38</Data></Cell>
+    <Cell><Data ss:Type="String">21:15</Data></Cell>
+    <Cell><Data ss:Type="String">21:52</Data></Cell>
+    <Cell><Data ss:Type="String">21:07</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">20:02</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">21:32</Data></Cell>
+    <Cell><Data ss:Type="String">21:27</Data></Cell>
+    <Cell><Data ss:Type="String">21:28</Data></Cell>
+    <Cell><Data ss:Type="String">22:13</Data></Cell>
+    <Cell><Data ss:Type="String">21:31</Data></Cell>
+    <Cell><Data ss:Type="String">21:07</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">21:31</Data></Cell>
+    <Cell><Data ss:Type="String">21:31</Data></Cell>
+    <Cell><Data ss:Type="String">21:04</Data></Cell>
+    <Cell><Data ss:Type="String">21:16</Data></Cell>
+    <Cell><Data ss:Type="String">21:04</Data></Cell>
+    <Cell><Data ss:Type="String">21:15</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">21:34</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+   </Row>
+   <Row>
+    <Cell><Data ss:Type="Number">5</Data></Cell>
+    <Cell><Data ss:Type="String">08:37</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">08:51</Data></Cell>
+    <Cell><Data ss:Type="String">08:33</Data></Cell>
+    <Cell><Data ss:Type="String">08:46</Data></Cell>
+    <Cell><Data ss:Type="String">08:29</Data></Cell>
+    <Cell><Data ss:Type="String">08:54</Data></Cell>
+    <Cell><Data ss:Type="String">08:41</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">08:48</Data></Cell>
+    <Cell><Data ss:Type="String">08:35</Data></Cell>
+    <Cell><Data ss:Type="String">08:52</Data></Cell>
+    <Cell><Data ss:Type="String">08:39</Data></Cell>
+    <Cell><Data ss:Type="String">08:45</Data></Cell>
+    <Cell><Data ss:Type="String">08:50</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">08:42</Data></Cell>
+    <Cell><Data ss:Type="String">08:40</Data></Cell>
+    <Cell><Data ss:Type="String">08:48</Data></Cell>
+    <Cell><Data ss:Type="String">08:44</Data></Cell>
+    <Cell><Data ss:Type="String">08:46</Data></Cell>
+    <Cell><Data ss:Type="String">08:41</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">08:43</Data></Cell>
+    <Cell><Data ss:Type="String">08:47</Data></Cell>
+    <Cell><Data ss:Type="String">08:39</Data></Cell>
+    <Cell><Data ss:Type="String">08:45</Data></Cell>
+    <Cell><Data ss:Type="String">08:50</Data></Cell>
+    <Cell><Data ss:Type="String">08:42</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">08:44</Data></Cell>
+    <Cell><Data ss:Type="String">Name: Moinbhai</Data></Cell>
+    <Cell><Data ss:Type="String">Company</Data></Cell>
+   </Row>
+   <Row>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">17:22</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">17:41</Data></Cell>
+    <Cell><Data ss:Type="String">17:18</Data></Cell>
+    <Cell><Data ss:Type="String">17:55</Data></Cell>
+    <Cell><Data ss:Type="String">17:12</Data></Cell>
+    <Cell><Data ss:Type="String">17:38</Data></Cell>
+    <Cell><Data ss:Type="String">13:05</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">17:27</Data></Cell>
+    <Cell><Data ss:Type="String">17:44</Data></Cell>
+    <Cell><Data ss:Type="String">17:19</Data></Cell>
+    <Cell><Data ss:Type="String">17:36</Data></Cell>
+    <Cell><Data ss:Type="String">17:30</Data></Cell>
+    <Cell><Data ss:Type="String">17:28</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">17:35</Data></Cell>
+    <Cell><Data ss:Type="String">17:31</Data></Cell>
+    <Cell><Data ss:Type="String">17:29</Data></Cell>
+    <Cell><Data ss:Type="String">17:40</Data></Cell>
+    <Cell><Data ss:Type="String">17:33</Data></Cell>
+    <Cell><Data ss:Type="String">17:27</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">17:32</Data></Cell>
+    <Cell><Data ss:Type="String">17:36</Data></Cell>
+    <Cell><Data ss:Type="String">17:30</Data></Cell>
+    <Cell><Data ss:Type="String">17:34</Data></Cell>
+    <Cell><Data ss:Type="String">17:28</Data></Cell>
+    <Cell><Data ss:Type="String">17:31</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String">17:29</Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+    <Cell><Data ss:Type="String"></Data></Cell>
+   </Row>
+  </Table>
+ </Worksheet>
+</Workbook>

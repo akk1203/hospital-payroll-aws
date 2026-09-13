@@ -1,0 +1,149 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CodePipeline + CodeBuild for hospital-payroll-aws (Quarkus Lambda SnapStart)
+
+Parameters:
+  GitHubOwner:
+    Type: String
+  GitHubRepo:
+    Type: String
+    Default: hospital-payroll-aws
+  GitHubBranch:
+    Type: String
+    Default: main
+  ConnectionArn:
+    Type: String
+    Description: CodeConnections / CodeStar Connections ARN for GitHub
+  AppStackName:
+    Type: String
+    Default: hospital-payroll-test
+    Description: CloudFormation stack the pipeline deploys (test stage)
+  CognitoDomainPrefix:
+    Type: String
+    Description: Globally unique Cognito hosted-UI prefix for the test stage
+  EnvironmentName:
+    Type: String
+    Default: test
+    AllowedValues: [dev, test, prod]
+  GoogleClientId:
+    Type: String
+    Default: ""
+  GoogleClientSecret:
+    Type: String
+    Default: ""
+    NoEcho: true
+
+Resources:
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  BuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  Project:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub ${AWS::StackName}-build
+      ServiceRole: !GetAtt BuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_MEDIUM
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        PrivilegedMode: false
+        EnvironmentVariables:
+          - Name: APP_STACK_NAME
+            Value: !Ref AppStackName
+          - Name: COGNITO_DOMAIN_PREFIX
+            Value: !Ref CognitoDomainPrefix
+          - Name: ENVIRONMENT_NAME
+            Value: !Ref EnvironmentName
+          - Name: GOOGLE_CLIENT_ID
+            Value: !Ref GoogleClientId
+          - Name: GOOGLE_CLIENT_SECRET
+            Value: !Ref GoogleClientSecret
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: buildspec.yml
+
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub ${AWS::StackName}-main-to-test
+      PipelineType: V2
+      RoleArn: !GetAtt PipelineRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: GitHub_main
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+                Version: "1"
+              Configuration:
+                ConnectionArn: !Ref ConnectionArn
+                FullRepositoryId: !Sub ${GitHubOwner}/${GitHubRepo}
+                BranchName: !Ref GitHubBranch
+                DetectChanges: true
+                OutputArtifactFormat: CODE_ZIP
+              OutputArtifacts:
+                - Name: Source
+        - Name: BuildAndDeployTest
+          Actions:
+            - Name: Build_and_deploy_test
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              Configuration:
+                ProjectName: !Ref Project
+              InputArtifacts:
+                - Name: Source
+
+Outputs:
+  PipelineName:
+    Value: !Ref Pipeline
+  PipelineUrl:
+    Value: !Sub https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/${Pipeline}/view
+  ArtifactBucket:
+    Value: !Ref ArtifactBucket
+  AppStackName:
+    Value: !Ref AppStackName

@@ -1,0 +1,13 @@
+target/
+.aws-sam/
+*.class
+.idea/
+.vscode/
+.classpath
+.project
+.settings/
+*.iml
+.env
+.DS_Store
+Thumbs.db
+ui/config.js
