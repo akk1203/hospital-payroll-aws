@@ -4,7 +4,7 @@ This folder is a **separate Git repo**. Path:
 
 `C:\Users\akkat\Projects\hospital-payroll\hospital-payroll-aws`
 
-A push to **`main`** starts CodePipeline. CodeBuild compiles the Quarkus Java 21 Lambda, then **`sam deploy` creates/updates the test-stage AWS stack** (`hospital-payroll-test`): HTTP API, SnapStart Lambda, DynamoDB (on-demand), S3, CloudFront, Cognito.
+A push to **`main`** starts CodePipeline. CodeBuild compiles the Quarkus Java 21 Lambda, then **`sam deploy` creates/updates the test-stage AWS stack** (`hospital-payroll-test`): HTTP API, SnapStart Lambda, DynamoDB (on-demand), S3 website UI, Cognito.
 
 You create pipeline infrastructure **once**. Application infrastructure is created by the first successful pipeline run.
 
@@ -21,7 +21,7 @@ You create pipeline infrastructure **once**. Application infrastructure is creat
 | Optional: [GitHub CLI `gh`](https://cli.github.com/) | Create the GitHub repo from the terminal |
 | Optional locally: Java 21 + Maven | Only if you build on your PC; CodeBuild already has them |
 
-Default AWS region used below: **`us-east-1`**. Change it if you prefer another region (Cognito hosted UI and Lambda SnapStart both work in `us-east-1`).
+Default AWS region used below: **`ap-southeast-2`** (Sydney). Use this region in the console, Connections, CLI, and every stack name lookup. Lambda SnapStart for Java 21 works there.
 
 ---
 
@@ -35,7 +35,7 @@ aws configure
 Enter:
 
 - Access key and secret for your IAM user
-- Default region: `us-east-1`
+- Default region: `ap-southeast-2`
 - Output: `json`
 
 Check:
@@ -76,7 +76,7 @@ CodePipeline cannot read GitHub until a **Connection** exists and is **Available
 4. Wait until status is **Available**.
 5. Copy the connection ARN. It looks like:
 
-`arn:aws:codeconnections:us-east-1:123456789012:connection/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`
+`arn:aws:codeconnections:ap-southeast-2:123456789012:connection/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`
 
 (older accounts may show `arn:aws:codestar-connections:...` — both work)
 
@@ -96,9 +96,9 @@ Pick a **globally unique** Cognito domain prefix (letters/digits/hyphens only), 
 ```powershell
 cd C:\Users\akkat\Projects\hospital-payroll\hospital-payroll-aws
 
-$Region = "us-east-1"
+$Region = "ap-southeast-2"
 $GitHubOwner = "YOUR_GITHUB_USER"
-$ConnectionArn = "arn:aws:codeconnections:us-east-1:ACCOUNT_ID:connection/CONNECTION_ID"
+$ConnectionArn = "arn:aws:codeconnections:ap-southeast-2:ACCOUNT_ID:connection/CONNECTION_ID"
 $CognitoPrefix = "payroll-test-ACCOUNT_ID"
 
 aws cloudformation deploy `
@@ -157,8 +157,7 @@ Then:
    - API Gateway HTTP API
    - Java 21 Lambda + SnapStart alias `live`
    - DynamoDB on-demand tables
-   - Data S3 + UI S3
-   - CloudFront
+   - Data S3 + public S3 website for the UI
    - Cognito user pool
 4. UI files sync to the UI bucket (`ui/config.js` points at the test API).
 
@@ -193,7 +192,7 @@ Every later `git push origin main` repeats build + **update** of the test stack.
 1. Google Cloud Console → OAuth client (Web).
 2. Authorized redirect URI:
 
-`https://YOUR_COGNITO_PREFIX.auth.us-east-1.amazoncognito.com/oauth2/idpresponse`
+`https://YOUR_COGNITO_PREFIX.auth.ap-southeast-2.amazoncognito.com/oauth2/idpresponse`
 
 3. Re-deploy the **pipeline** stack with `GoogleClientId` and `GoogleClientSecret`. CodeBuild passes them into `sam deploy` on the next `main` push.
 

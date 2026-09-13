@@ -136,48 +136,20 @@ Resources:
   UiBucket:
     Type: AWS::S3::Bucket
     Properties:
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
       PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-
-  OriginAccessControl:
-    Type: AWS::CloudFront::OriginAccessControl
-    Properties:
-      OriginAccessControlConfig:
-        Name: !Sub ${AWS::StackName}-ui-oac
-        OriginAccessControlOriginType: s3
-        SigningBehavior: always
-        SigningProtocol: sigv4
-
-  UiDistribution:
-    Type: AWS::CloudFront::Distribution
-    Properties:
-      DistributionConfig:
-        Enabled: true
-        DefaultRootObject: index.html
-        HttpVersion: http2
-        Origins:
-          - Id: UiBucket
-            DomainName: !GetAtt UiBucket.RegionalDomainName
-            OriginAccessControlId: !GetAtt OriginAccessControl.Id
-            S3OriginConfig:
-              OriginAccessIdentity: ""
-        DefaultCacheBehavior:
-          TargetOriginId: UiBucket
-          ViewerProtocolPolicy: redirect-to-https
-          AllowedMethods: [GET, HEAD, OPTIONS]
-          CachedMethods: [GET, HEAD]
-          Compress: true
-          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
-        CustomErrorResponses:
-          - ErrorCode: 403
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-          - ErrorCode: 404
-            ResponseCode: 200
-            ResponsePagePath: /index.html
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: [GET, HEAD]
+            AllowedOrigins: ["*"]
+            MaxAge: 3000
 
   UiBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -185,14 +157,11 @@ Resources:
       Bucket: !Ref UiBucket
       PolicyDocument:
         Statement:
-          - Effect: Allow
-            Principal:
-              Service: cloudfront.amazonaws.com
+          - Sid: PublicReadUi
+            Effect: Allow
+            Principal: "*"
             Action: s3:GetObject
             Resource: !Sub ${UiBucket.Arn}/*
-            Condition:
-              StringEquals:
-                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${UiDistribution}
 
   UserPool:
     Type: AWS::Cognito::UserPool
@@ -259,10 +228,9 @@ Resources:
       AllowedOAuthFlows: [implicit]
       AllowedOAuthScopes: [openid, email, profile]
       CallbackURLs:
-        - !Sub https://${UiDistribution.DomainName}/
-        - !Sub https://${UiDistribution.DomainName}/index.html
+        - http://localhost
       LogoutURLs:
-        - !Sub https://${UiDistribution.DomainName}/
+        - http://localhost
       SupportedIdentityProviders: [COGNITO]
       PreventUserExistenceErrors: ENABLED
 
@@ -289,7 +257,7 @@ Resources:
           COGNITO_HOSTED_UI_DOMAIN: !Sub https://${CognitoDomainPrefix}.auth.${AWS::Region}.amazoncognito.com
           COGNITO_HOSTED_UI_CLIENT_ID: !Ref UiUserPoolClient
           COGNITO_GOOGLE_ENABLED: !If [HasGoogle, "true", "false"]
-          UI_ORIGIN: !Sub https://${UiDistribution.DomainName}
+          UI_ORIGIN: !GetAtt UiBucket.WebsiteURL
           DEMO_RESET_ENABLED: !If [IsProd, "false", !Ref DemoResetEnabled]
           PAYROLL_ENVIRONMENT: !Ref EnvironmentName
           JAVA_TOOL_OPTIONS: -XX:+TieredCompilation -XX:TieredStopAtLevel=1
@@ -365,7 +333,7 @@ Outputs:
   ApiUrl:
     Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
   UiUrl:
-    Value: !Sub https://${UiDistribution.DomainName}
+    Value: !GetAtt UiBucket.WebsiteURL
   UiBucketName:
     Value: !Ref UiBucket
   UserPoolId:
