@@ -54,6 +54,8 @@ Resources:
 
   EmployeesTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
@@ -65,6 +67,8 @@ Resources:
 
   BatchesTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
@@ -76,6 +80,8 @@ Resources:
 
   PayslipsTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
@@ -96,6 +102,8 @@ Resources:
 
   AdjustmentsTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
@@ -111,6 +119,8 @@ Resources:
 
   MappingsTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
@@ -298,32 +308,14 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /{proxy+}
             Method: ANY
-            PayloadFormatVersion: "1.0"
+            PayloadFormatVersion: "2.0"
         Root:
           Type: HttpApi
           Properties:
             ApiId: !Ref HttpApi
             Path: /
             Method: ANY
-            PayloadFormatVersion: "1.0"
-        OptionsProxy:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /{proxy+}
-            Method: OPTIONS
-            Auth:
-              Authorizer: NONE
-            PayloadFormatVersion: "1.0"
-        OptionsRoot:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref HttpApi
-            Path: /
-            Method: OPTIONS
-            Auth:
-              Authorizer: NONE
-            PayloadFormatVersion: "1.0"
+            PayloadFormatVersion: "2.0"
         PublicConfig:
           Type: HttpApi
           Properties:
@@ -332,7 +324,7 @@ Resources:
             Method: GET
             Auth:
               Authorizer: NONE
-            PayloadFormatVersion: "1.0"
+            PayloadFormatVersion: "2.0"
         PublicLogin:
           Type: HttpApi
           Properties:
@@ -341,7 +333,7 @@ Resources:
             Method: POST
             Auth:
               Authorizer: NONE
-            PayloadFormatVersion: "1.0"
+            PayloadFormatVersion: "2.0"
         PublicSignup:
           Type: HttpApi
           Properties:
@@ -350,7 +342,7 @@ Resources:
             Method: POST
             Auth:
               Authorizer: NONE
-            PayloadFormatVersion: "1.0"
+            PayloadFormatVersion: "2.0"
 
 Outputs:
   ApiUrl:
