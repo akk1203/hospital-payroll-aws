@@ -104,10 +104,19 @@ Resources:
     Properties:
       Name: !Sub ${AWS::StackName}-main-to-test
       PipelineType: V2
+      ExecutionMode: QUEUED
       RoleArn: !GetAtt PipelineRole.Arn
       ArtifactStore:
         Type: S3
         Location: !Ref ArtifactBucket
+      Triggers:
+        - ProviderType: CodeStarSourceConnection
+          GitConfiguration:
+            SourceActionName: GitHub_main
+            Push:
+              - Branches:
+                  Includes:
+                    - main
       Stages:
         - Name: Source
           Actions:

@@ -187,6 +187,40 @@ Every later `git push origin main` repeats build + **update** of the test stack.
 
 ---
 
+## Fast deploy (skip the 3–4 minute pipeline)
+
+Use this on your PC when you are iterating. It does **not** wait for CodePipeline. Infra (Cognito, DynamoDB, API Gateway, S3) stays as-is.
+
+Install once: [AWS CLI v2](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html), [Java 21](https://adoptium.net/), [Maven 3.9+](https://maven.apache.org/download.cgi). `aws configure` region **`ap-southeast-2`**.
+
+Windows blocks `.ps1` scripts by default. Use **Command Prompt** or double-click `deploy-fast.cmd` (not the `.ps1`).
+
+```bat
+cd C:\Users\akkat\Projects\hospital-payroll\hospital-payroll-aws
+
+REM UI CSS/JS only (about 10 seconds)
+deploy-fast.cmd -What ui
+
+REM API only (Maven package, upload zip to S3, Lambda SnapStart alias live)
+deploy-fast.cmd -What api
+
+REM Both
+deploy-fast.cmd
+```
+
+If you still want PowerShell:
+
+```powershell
+cd C:\Users\akkat\Projects\hospital-payroll\hospital-payroll-aws
+powershell -ExecutionPolicy Bypass -File .\scripts\deploy-fast.ps1 -What ui
+```
+
+After an API change, open the S3 UI, sign in, and click **Calculate** again so payslips use the new rules.
+
+Push `main` when you want the pipeline to record the same revision on AWS.
+
+---
+
 ## Optional — Google sign-in on test
 
 1. Google Cloud Console → OAuth client (Web).

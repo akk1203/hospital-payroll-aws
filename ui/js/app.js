@@ -1,3 +1,7 @@
+function otPay(obj) {
+    return obj && (obj.overtimeEligible === true || obj.overtimeEligible === "true");
+}
+
 function api() {
     const configured = window.PAYROLL_API || "http://localhost:8080/api";
     if (configured.startsWith("/")) {
@@ -27,7 +31,14 @@ async function request(path, options = {}) {
     if (token && !headers.Authorization) {
         headers.Authorization = "Bearer " + token;
     }
-    const response = await fetch(api() + path, { ...options, headers });
+    let response;
+    try {
+        response = await fetch(api() + path, { ...options, headers });
+    } catch (error) {
+        throw new Error(
+            "Cannot reach the API at " + api() + ". Open the hosted site (the S3 website URL printed by deploy-fast), not a local HTML file. (" + (error && error.message ? error.message : "Failed to fetch") + ")"
+        );
+    }
     if (response.status === 401 && !path.startsWith("/auth/")) {
         logout(false);
         throw new Error("Please log in to continue");
@@ -54,6 +65,21 @@ async function downloadAuth(path, filename) {
         throw new Error("Download failed");
     }
     const blob = await response.blob();
+    if (filename.endsWith(".xlsx") || filename.endsWith(".xls")) {
+        const header = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+        const zip = header.length >= 2 && header[0] === 0x50 && header[1] === 0x4b;
+        const ole = header.length >= 4 && header[0] === 0xd0 && header[1] === 0xcf;
+        if (!zip && !ole) {
+            throw new Error("Excel download was not a valid workbook. Redeploy the API with deploy-fast.cmd -What api, then download again.");
+        }
+    }
+    if (filename.endsWith(".pdf")) {
+        const header = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+        const pdf = header.length >= 4 && header[0] === 0x25 && header[1] === 0x50 && header[2] === 0x44 && header[3] === 0x46;
+        if (!pdf) {
+            throw new Error("PDF download failed. Redeploy the API with deploy-fast.cmd, then try again.");
+        }
+    }
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -414,12 +440,13 @@ async function employeesView() {
             <td data-label="Salary / month">${money(emp.salaryPerMonth)}</td>
             <td data-label="Hours / day">${escapeHtml(emp.hoursPerDay ?? "")}</td>
             <td data-label="Allowed leaves">${emp.allowedLeavesPerMonth}</td>
+            <td data-label="Overtime">${otPay(emp) ? "Yes (hourly)" : "No (per day)"}</td>
             <td data-label="Sheet ID">${escapeHtml(emp.attendanceCode || "")}</td>
             <td class="inline actions" data-label="Actions">
                 <a class="btn secondary" href="#/employees/edit/${emp.id}">Edit</a>
                 <button class="btn danger" data-deactivate="${emp.id}">Remove</button>
             </td>
-        </tr>`).join("") || `<tr><td class="empty" colspan="8">No employees yet.</td></tr>`;
+        </tr>`).join("") || `<tr><td class="empty" colspan="9">No employees yet.</td></tr>`;
     return `
         <div class="row">
             <h1>Employees</h1>
@@ -430,7 +457,7 @@ async function employeesView() {
             <thead>
                 <tr>
                     <th>Name</th><th>Position</th><th>Joined</th>
-                    <th>Salary / month</th><th>Hours / day</th><th>Allowed leaves</th><th>Sheet ID</th><th></th>
+                    <th>Salary / month</th><th>Hours / day</th><th>Allowed leaves</th><th>Overtime</th><th>Sheet ID</th><th></th>
                 </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -457,7 +484,7 @@ function bindEmployeeList() {
 
 async function employeeFormView(id) {
     const employee = id ? await request("/employees/" + id) : {
-        name: "", position: "", department: "", dateOfJoining: "", salaryPerMonth: "", hoursPerDay: 8, allowedLeavesPerMonth: 2, attendanceCode: ""
+        name: "", position: "", department: "", dateOfJoining: "", salaryPerMonth: "", hoursPerDay: 8, allowedLeavesPerMonth: 2, attendanceCode: "", overtimeEligible: false
     };
     return `
         <h1>${id ? "Edit employee" : "New employee"}</h1>
@@ -469,6 +496,7 @@ async function employeeFormView(id) {
             <label>Salary per month (INR) <input type="number" step="0.01" min="0" name="salaryPerMonth" required value="${escapeHtml(employee.salaryPerMonth ?? "")}"/></label>
             <label>Hours per day <input type="number" step="0.25" min="0.25" name="hoursPerDay" required value="${escapeHtml(employee.hoursPerDay ?? 8)}"/></label>
             <label>Allowed leaves per month <input type="number" min="0" name="allowedLeavesPerMonth" value="${escapeHtml(employee.allowedLeavesPerMonth ?? 0)}"/></label>
+            <label class="check"><input type="checkbox" id="overtimeEligible" name="overtimeEligible" ${otPay(employee) ? "checked" : ""}/> Overtime allowed (pay by punched hours). Unchecked = daily rate, not hours.</label>
             <label>Attendance sheet ID <input name="attendanceCode" value="${escapeHtml(employee.attendanceCode || "")}" placeholder="Matches printed ID, e.g. 6"/></label>
             <div class="inline">
                 <button class="btn" type="submit">Save</button>
@@ -482,15 +510,24 @@ function bindEmployeeForm() {
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
         const data = Object.fromEntries(new FormData(form).entries());
-        data.salaryPerMonth = Number(data.salaryPerMonth);
-        data.hoursPerDay = Number(data.hoursPerDay);
-        data.allowedLeavesPerMonth = Number(data.allowedLeavesPerMonth || 0);
+        const overtimeBox = form.querySelector("#overtimeEligible");
+        const payload = {
+            name: data.name,
+            position: data.position,
+            department: data.department,
+            dateOfJoining: data.dateOfJoining,
+            salaryPerMonth: Number(data.salaryPerMonth),
+            hoursPerDay: Number(data.hoursPerDay),
+            allowedLeavesPerMonth: Number(data.allowedLeavesPerMonth || 0),
+            attendanceCode: data.attendanceCode || "",
+            overtimeEligible: !!(overtimeBox && overtimeBox.checked)
+        };
         const id = form.dataset.id;
         try {
             if (id) {
-                await request("/employees/" + id, { method: "PUT", body: JSON.stringify(data) });
+                await request("/employees/" + id, { method: "PUT", body: JSON.stringify(payload) });
             } else {
-                await request("/employees", { method: "POST", body: JSON.stringify(data) });
+                await request("/employees", { method: "POST", body: JSON.stringify(payload) });
             }
             location.hash = "#/employees";
         } catch (error) {
@@ -636,9 +673,11 @@ async function payrollView() {
             <td data-label="Employee">${escapeHtml(slip.employeeName)}</td>
             <td data-label="Position">${escapeHtml(slip.position || "")}</td>
             <td data-label="Present">${slip.presentDays}</td>
-            <td data-label="Hours worked">${Number(slip.workedHours || 0).toFixed(2)}h</td>
-            <td data-label="Payable hours">${Number(slip.payableHours || 0).toFixed(2)}h</td>
-            <td data-label="Rate / hour">${money(slip.hourlyRate)}</td>
+            <td data-label="Pay type">${otPay(slip) ? "Hourly" : "Per day"}</td>
+            <td data-label="${otPay(slip) ? "Payable hours" : "Payable days"}">${otPay(slip)
+                ? Number(slip.payableHours || 0).toFixed(2) + "h"
+                : Number(slip.payableDays || slip.presentDays || 0).toFixed(2) + " days"}</td>
+            <td data-label="${otPay(slip) ? "Rate / hour" : "Rate / day"}">${money(otPay(slip) ? slip.hourlyRate : slip.dailyRate)}</td>
             <td data-label="Gross">${money(slip.monthlySalary)}</td>
             <td data-label="Shortfall">${money(slip.leaveWithoutPayDeduction)}</td>
             <td data-label="Net pay">${money(slip.netPay)}</td>
@@ -649,7 +688,7 @@ async function payrollView() {
         </tr>`).join("") || `<tr><td class="empty" colspan="10">No payslips for ${escapeHtml(month)} yet. Choose that month and click Calculate.</td></tr>`;
     return `
         <h1>Monthly salary</h1>
-        <p>Hourly rate = monthly salary ÷ ((sheet days − allowed leaves) × hours per day). Allowed leave is built into the rate, so those days do not need extra paid-leave hours. Net pay = hourly rate × hours credited on present days. Extra hours above the daily requirement are paid at the same rate.</p>
+        <p>Daily rate = monthly salary ÷ 30 (always 30 days). Hourly rate = daily rate ÷ hours per day. If overtime is allowed, pay is by punched hours. If overtime is not allowed, pay is a daily rate (short days still count as a full day and are highlighted). Unused allowed leave is paid as overtime (one daily rate per unused day). Missing in or out is counted as a full day and highlighted.</p>
         <p>Days you change on the daily breakdown are kept if you upload the same month again and recalculate. The file will not overwrite those hours.</p>
         <form class="form" id="payroll-form">
             <label>Attendance file
@@ -661,13 +700,16 @@ async function payrollView() {
             <label>Payroll month <input type="month" name="month" value="${escapeHtml(month)}" required/></label>
             <button class="btn" type="submit">Calculate</button>
         </form>
-        <p class="lead">Showing payslips for <strong>${escapeHtml(month)}</strong>.</p>
+        <p class="lead">Showing payslips for <strong>${escapeHtml(month)}</strong>
+            ${(payslips || []).length
+                ? ` · <a class="btn" href="#" id="month-export" data-month="${escapeHtml(month)}">Export month Excel</a>`
+                : ""}</p>
         <div class="table-wrap">
         <table class="stack">
             <thead>
                 <tr>
-                    <th>Employee</th><th>Position</th><th>Present</th><th>Hours worked</th>
-                    <th>Payable hours</th><th>Rate / hour</th><th>Gross</th><th>Shortfall</th><th>Net pay</th><th></th>
+                    <th>Employee</th><th>Position</th><th>Present</th><th>Pay type</th>
+                    <th>Payable</th><th>Rate</th><th>Gross</th><th>Shortfall</th><th>Net pay</th><th></th>
                 </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -677,6 +719,18 @@ async function payrollView() {
 
 function bindPayroll() {
     bindExportLinks();
+    const monthExport = document.getElementById("month-export");
+    if (monthExport) {
+        monthExport.addEventListener("click", async (event) => {
+            event.preventDefault();
+            const month = monthExport.getAttribute("data-month");
+            try {
+                await downloadAuth("/payroll/month/export?month=" + encodeURIComponent(month), "Payroll-" + month + ".xlsx");
+            } catch (error) {
+                alert(error.message);
+            }
+        });
+    }
     const form = document.getElementById("payroll-form");
     form.month.addEventListener("change", () => {
         location.hash = "#/payroll?month=" + form.month.value;
@@ -748,11 +802,15 @@ async function payslipDetailView(id) {
         const classes = [
             day.adjusted ? "row-adjusted" : "",
             incomplete ? "row-incomplete" : "",
+            day.status === "ABSENT" ? "row-absent" : "",
+            day.shortHours ? "row-short" : "",
             weekday === "Sunday" ? "row-sunday" : ""
         ].filter(Boolean).join(" ");
         const tags = [
             day.adjusted ? `<span class="tag tag-adjusted">Corrected</span>` : "",
-            incomplete ? `<span class="tag tag-incomplete">Missing in/out</span>` : ""
+            incomplete ? `<span class="tag tag-incomplete">Missing in/out · full day</span>` : "",
+            day.status === "ABSENT" ? `<span class="tag tag-absent">Absent</span>` : "",
+            day.shortHours ? `<span class="tag tag-short">Short hours</span>` : ""
         ].join("");
         return `
         <tr class="${classes}">
@@ -782,17 +840,22 @@ async function payslipDetailView(id) {
     }).join("");
     return `
         <p><a href="#/payroll?month=${encodeURIComponent(month)}">← Monthly salary</a>
-            · <a class="btn export-link" href="#" data-id="${escapeHtml(id)}">Export Excel</a></p>
+            · <a class="btn export-link" href="#" data-id="${escapeHtml(id)}">Export Excel</a>
+            · <a class="btn" href="#" id="pdf-export" data-id="${escapeHtml(id)}" data-name="${escapeHtml(slip.employeeName || "employee")}" data-month="${escapeHtml(month)}">Salary slip PDF</a></p>
         <h1>${escapeHtml(slip.employeeName)}</h1>
         <p class="lead">${escapeHtml(slip.position || "")} · ${escapeHtml(month)} ·
-            ${Number(slip.hoursPerDay || 0)} hours/day · ${money(slip.hourlyRate)} / hour ·
+            ${Number(slip.hoursPerDay || 0)} hours/day · ${money(slip.dailyRate)} / day · ${money(slip.hourlyRate)} / hour ·
+            ${otPay(slip) ? "Overtime allowed (hourly pay)" : "No overtime (per-day pay)"} ·
+            Unused leave OT ${slip.unusedLeaveDays || 0} day(s) ${money(slip.overtimePay)} ·
             Net pay ${money(slip.netPay)}</p>
         <p>Change in/out times, or mark a day as <strong>full day</strong> (${escapeHtml(slip.hoursPerDay)}h) or
             <strong>half day</strong> (${(Number(slip.hoursPerDay || 0) / 2).toFixed(2)}h). Salary is recalculated when you save.
             These changes stay if you re-upload attendance and calculate this month again.</p>
         <p class="legend">
             <span><i class="swatch adjusted"></i> Corrected in the UI</span>
-            <span><i class="swatch incomplete"></i> Only in or only out</span>
+            <span><i class="swatch incomplete"></i> Missing in/out (counted as full day)</span>
+            <span><i class="swatch absent"></i> Absent</span>
+            <span><i class="swatch short"></i> Worked less than regular hours</span>
         </p>
         <div class="table-wrap">
         <table class="stack">
@@ -809,6 +872,19 @@ async function payslipDetailView(id) {
 function bindPayslipDetail() {
     bindExportLinks();
     const id = location.hash.replace("#/payroll/", "").split("?")[0];
+    const pdf = document.getElementById("pdf-export");
+    if (pdf) {
+        pdf.addEventListener("click", async (event) => {
+            event.preventDefault();
+            const name = (pdf.getAttribute("data-name") || "employee").replace(/[^A-Za-z0-9]+/g, "-");
+            const month = pdf.getAttribute("data-month") || "month";
+            try {
+                await downloadAuth("/payroll/" + id + "/pdf", "SalarySlip-" + name + "-" + month + ".pdf");
+            } catch (error) {
+                alert(error.message);
+            }
+        });
+    }
     document.querySelectorAll(".day-form").forEach((form) => {
         form.addEventListener("submit", async (event) => {
             event.preventDefault();

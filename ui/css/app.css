@@ -132,6 +132,11 @@ input[type="file"] { width: 100%; }
 .swatch { width: 1rem; height: 1rem; border-radius: 4px; border: 1px solid var(--line); display: inline-block; }
 .swatch.adjusted { background: #ccfbf1; }
 .swatch.incomplete { background: #fef3c7; }
+.swatch.absent { background: #fecaca; }
+.swatch.short { background: #fed7aa; }
+.tag-incomplete { background: #d97706; color: #fff; }
+.tag-absent { background: #b91c1c; color: #fff; }
+.tag-short { background: #c2410c; color: #fff; }
 .tag { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 0.1rem 0.4rem; border-radius: 999px; margin: 0.15rem 0.2rem 0.15rem 0; vertical-align: middle; }
 .tag-adjusted { background: #0f766e; color: #fff; }
 .sunday-name { font-weight: 700; color: #9b1b30; }
@@ -159,7 +164,13 @@ tr.row-sunday td[data-label="Day"] { font-weight: 700; }
     border: 1px solid var(--line);
 }
 .btn.google:hover { background: #f8fafc; }
-.muted-link { color: var(--muted); }
+.check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+}
+.check input { width: auto; }
 
 @media (max-width: 800px) {
     .table-wrap { overflow: visible; }
@@ -235,6 +246,14 @@ tr.row-incomplete,
 tr.row-incomplete td {
     background-color: #fef3c7;
 }
+tr.row-absent,
+tr.row-absent td {
+    background-color: #fecaca;
+}
+tr.row-short,
+tr.row-short td {
+    background-color: #fed7aa;
+}
 tr.row-adjusted.row-incomplete,
 tr.row-adjusted.row-incomplete td {
     background-color: #fde68a;
@@ -250,13 +269,23 @@ tr.row-adjusted.row-incomplete td {
         border-color: #d97706;
         box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.25);
     }
+    table.stack tr.row-absent {
+        background: #fecaca;
+        border-color: #b91c1c;
+    }
+    table.stack tr.row-short {
+        background: #fed7aa;
+        border-color: #c2410c;
+    }
     table.stack tr.row-adjusted.row-incomplete {
         background: #fde68a;
         border-color: #0f766e;
         box-shadow: inset 6px 0 0 #0f766e, 0 0 0 2px rgba(217, 119, 6, 0.2);
     }
     table.stack tr.row-adjusted td,
-    table.stack tr.row-incomplete td {
+    table.stack tr.row-incomplete td,
+    table.stack tr.row-absent td,
+    table.stack tr.row-short td {
         background: transparent;
     }
 }

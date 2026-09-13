@@ -32,6 +32,11 @@ public class Payslip {
     private BigDecimal dailyRate;
     private BigDecimal leaveWithoutPayDeduction;
     private BigDecimal netPay;
+    private BigDecimal overtimePay;
+    @com.fasterxml.jackson.annotation.JsonProperty("overtimeEligible")
+    private boolean overtimeEligible;
+    private int unusedLeaveDays;
+    private BigDecimal payableDays;
     private Instant calculatedAt = Instant.now();
     private List<String> notes = new ArrayList<>();
 
@@ -225,6 +230,40 @@ public class Payslip {
 
     public void setNetPay(BigDecimal netPay) {
         this.netPay = netPay;
+    }
+
+    public BigDecimal getOvertimePay() {
+        return overtimePay;
+    }
+
+    public void setOvertimePay(BigDecimal overtimePay) {
+        this.overtimePay = overtimePay;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("overtimeEligible")
+    public boolean getOvertimeEligible() {
+        return overtimeEligible;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("overtimeEligible")
+    public void setOvertimeEligible(boolean overtimeEligible) {
+        this.overtimeEligible = overtimeEligible;
+    }
+
+    public int getUnusedLeaveDays() {
+        return unusedLeaveDays;
+    }
+
+    public void setUnusedLeaveDays(int unusedLeaveDays) {
+        this.unusedLeaveDays = unusedLeaveDays;
+    }
+
+    public BigDecimal getPayableDays() {
+        return payableDays;
+    }
+
+    public void setPayableDays(BigDecimal payableDays) {
+        this.payableDays = payableDays;
     }
 
     public Instant getCalculatedAt() {

@@ -68,12 +68,18 @@ public final class PayslipExcelExporter {
             CellStyle adjustedBox = filled(workbook, box, IndexedColors.LIGHT_TURQUOISE);
             CellStyle incompleteBox = filled(workbook, box, IndexedColors.LIGHT_YELLOW);
             CellStyle bothBox = filled(workbook, box, IndexedColors.GOLD);
+            CellStyle absentBox = filled(workbook, box, IndexedColors.ROSE);
+            CellStyle shortBox = filled(workbook, box, IndexedColors.LIGHT_ORANGE);
             CellStyle adjustedHours = filled(workbook, hours, IndexedColors.LIGHT_TURQUOISE);
             CellStyle incompleteHours = filled(workbook, hours, IndexedColors.LIGHT_YELLOW);
             CellStyle bothHours = filled(workbook, hours, IndexedColors.GOLD);
+            CellStyle absentHours = filled(workbook, hours, IndexedColors.ROSE);
+            CellStyle shortHours = filled(workbook, hours, IndexedColors.LIGHT_ORANGE);
             CellStyle adjustedMoney = filled(workbook, money, IndexedColors.LIGHT_TURQUOISE);
             CellStyle incompleteMoney = filled(workbook, money, IndexedColors.LIGHT_YELLOW);
             CellStyle bothMoney = filled(workbook, money, IndexedColors.GOLD);
+            CellStyle absentMoney = filled(workbook, money, IndexedColors.ROSE);
+            CellStyle shortMoney = filled(workbook, money, IndexedColors.LIGHT_ORANGE);
 
             int r = 0;
             Row titleRow = sheet.createRow(r++);
@@ -86,8 +92,12 @@ public final class PayslipExcelExporter {
             info(sheet, r++, label, "Month", slip.getMonth());
             info(sheet, r++, label, "Hours / day", text(slip.getHoursPerDay()));
             info(sheet, r++, label, "Allowed leaves", String.valueOf(slip.getAllowedLeaves()));
-            info(sheet, r++, label, "Expected hours (sheet days − leaves)", text(slip.getExpectedHours()));
+            info(sheet, r++, label, "Expected hours (30 × hours/day)", text(slip.getExpectedHours()));
+            info(sheet, r++, label, "Pay type", slip.getOvertimeEligible() ? "Hourly (overtime allowed)" : "Per day");
+            info(sheet, r++, label, "Daily rate (salary ÷ 30)", text(slip.getDailyRate()));
             info(sheet, r++, label, "Hourly rate (INR)", text(slip.getHourlyRate()));
+            info(sheet, r++, label, "Unused leave overtime days", String.valueOf(slip.getUnusedLeaveDays()));
+            info(sheet, r++, label, "Overtime pay", text(slip.getOvertimePay()));
             info(sheet, r++, label, "Present days", String.valueOf(slip.getPresentDays()));
             info(sheet, r++, label, "Hours worked", text(slip.getWorkedHours()));
             info(sheet, r++, label, "Payable hours", text(slip.getPayableHours()));
@@ -103,15 +113,21 @@ public final class PayslipExcelExporter {
             }
 
             for (DayBreakdown day : detail.getDays()) {
+                boolean absent = day.getStatus() != null && "ABSENT".equals(day.getStatus().name());
                 boolean both = day.isAdjusted() && day.isIncompletePunch();
                 CellStyle textStyle = both ? bothBox : day.isIncompletePunch() ? incompleteBox
+                        : absent ? absentBox : day.isShortHours() ? shortBox
                         : day.isAdjusted() ? adjustedBox : box;
                 CellStyle hourStyle = both ? bothHours : day.isIncompletePunch() ? incompleteHours
+                        : absent ? absentHours : day.isShortHours() ? shortHours
                         : day.isAdjusted() ? adjustedHours : hours;
                 CellStyle moneyStyle = both ? bothMoney : day.isIncompletePunch() ? incompleteMoney
+                        : absent ? absentMoney : day.isShortHours() ? shortMoney
                         : day.isAdjusted() ? adjustedMoney : money;
-                String note = both ? "Corrected; missing in or out"
-                        : day.isIncompletePunch() ? "Missing in or out"
+                String note = both ? "Corrected; missing in or out counted as full day"
+                        : day.isIncompletePunch() ? "Missing in or out counted as full day"
+                        : day.getStatus() != null && "ABSENT".equals(day.getStatus().name()) ? "Absent"
+                        : day.isShortHours() ? "Worked less than regular hours"
                         : day.isAdjusted() ? "Corrected" : "";
                 Row row = sheet.createRow(r++);
                 cell(row, 0, day.getDate() == null ? "" : day.getDate().toString(), textStyle);

@@ -21,12 +21,15 @@ public class Employee {
     private int allowedLeavesPerMonth;
 
     /**
-     * Required duty hours for a working day. Hourly rate is monthly salary
-     * divided by ((sheet days − allowed leaves) × this value).
+     * Required duty hours for a working day. Daily rate is monthly salary ÷ 30.
+     * Hourly rate is daily rate ÷ this value.
      */
     private BigDecimal hoursPerDay;
 
     private String attendanceCode;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("overtimeEligible")
+    private boolean overtimeEligible;
 
     private boolean active = true;
 
@@ -100,6 +103,16 @@ public class Employee {
 
     public void setAttendanceCode(String attendanceCode) {
         this.attendanceCode = attendanceCode;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("overtimeEligible")
+    public boolean getOvertimeEligible() {
+        return overtimeEligible;
+    }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("overtimeEligible")
+    public void setOvertimeEligible(boolean overtimeEligible) {
+        this.overtimeEligible = overtimeEligible;
     }
 
     public boolean isActive() {

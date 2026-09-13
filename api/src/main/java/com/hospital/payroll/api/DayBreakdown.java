@@ -18,6 +18,7 @@ public class DayBreakdown {
     private BigDecimal pay;
     private boolean adjusted;
     private boolean incompletePunch;
+    private boolean shortHours;
 
     public LocalDate getDate() {
         return date;
@@ -105,5 +106,13 @@ public class DayBreakdown {
 
     public void setIncompletePunch(boolean incompletePunch) {
         this.incompletePunch = incompletePunch;
+    }
+
+    public boolean isShortHours() {
+        return shortHours;
+    }
+
+    public void setShortHours(boolean shortHours) {
+        this.shortHours = shortHours;
     }
 }

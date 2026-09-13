@@ -7,29 +7,14 @@ import com.hospital.payroll.model.Employee;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
-import java.time.Instant;
 import java.util.List;
 
 @ApplicationScoped
 public class AttendanceService {
 
-    @Inject AttendanceFileParser parser;
     @Inject EmployeeMatcher matcher;
     @Inject DynamoPayrollStore store;
     @Inject DayAdjustmentService dayAdjustmentService;
-
-    public AttendanceBatch importFile(byte[] data, String originalFilename) {
-        AttendanceFileParser.ParsedAttendance parsed = parser.parse(data, originalFilename);
-        AttendanceBatch batch = new AttendanceBatch();
-        batch.setOriginalFilename(originalFilename);
-        batch.setPeriodStart(parsed.periodStart());
-        batch.setPeriodEnd(parsed.periodEnd());
-        batch.setUploadedAt(Instant.now());
-        batch.setPeople(parsed.people());
-        applyMatches(batch);
-        dayAdjustmentService.applyToBatch(batch);
-        return store.saveBatch(batch);
-    }
 
     public AttendanceBatch mapPerson(String batchId, String sourceKey, String employeeId) {
         AttendanceBatch batch = get(batchId);

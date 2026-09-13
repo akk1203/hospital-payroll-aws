@@ -107,23 +107,71 @@ public class AttendanceFileParser {
 
     private ParsedAttendance parseExcel(InputStream in) throws Exception {
         byte[] data = in.readAllBytes();
-        String probe = new String(data, 0, Math.min(data.length, 800), StandardCharsets.UTF_8);
+        if (data.length == 0) {
+            throw new IllegalArgumentException("The attendance file was empty.");
+        }
         Workbook workbook;
-        if (probe.contains("Excel.Sheet") || probe.contains("office:spreadsheet")) {
-            workbook = spreadsheetMlToWorkbook(data);
-        } else {
-            workbook = WorkbookFactory.create(new ByteArrayInputStream(data));
+        try {
+            if (looksLikeXmlSpreadsheet(data)) {
+                workbook = spreadsheetMlToWorkbook(data);
+            } else {
+                workbook = WorkbookFactory.create(new ByteArrayInputStream(data));
+            }
+        } catch (Exception ex) {
+            try {
+                workbook = spreadsheetMlToWorkbook(data);
+            } catch (Exception ignored) {
+                throw new IllegalArgumentException(
+                        "This is not a readable Excel workbook. Download a fresh sample from this page after the latest API deploy, "
+                                + "or in Excel use File → Save As → Excel Workbook (.xlsx). (" + ex.getMessage() + ")");
+            }
         }
         try (Workbook opened = workbook) {
-            Sheet sheet = opened.getSheetAt(0);
-            DataFormatter formatter = new DataFormatter();
-            Row header = sheet.getRow(0);
-            String headerText = header == null ? "" : rowText(header, formatter).toLowerCase(Locale.ROOT);
-            if (headerText.contains("employee_name") || headerText.contains("time_in") || headerText.contains("in_time")) {
-                return parseLongExcel(sheet, formatter);
-            }
-            return parseWideReport(sheet, formatter);
+            return parseExcelWorkbook(opened);
         }
+    }
+
+    private ParsedAttendance parseExcelWorkbook(Workbook opened) {
+        Sheet sheet = opened.getSheetAt(0);
+        DataFormatter formatter = new DataFormatter();
+        Row header = sheet.getRow(0);
+        String headerText = header == null ? "" : rowText(header, formatter).toLowerCase(Locale.ROOT);
+        if (headerText.contains("employee_name") || headerText.contains("time_in") || headerText.contains("in_time")) {
+            return parseLongExcel(sheet, formatter);
+        }
+        return parseWideReport(sheet, formatter);
+    }
+
+    private boolean looksLikeXmlSpreadsheet(byte[] data) {
+        if (data.length >= 2 && data[0] == 'P' && data[1] == 'K') {
+            return false;
+        }
+        if (data.length >= 4 && (data[0] & 0xFF) == 0xD0 && (data[1] & 0xFF) == 0xCF) {
+            return false;
+        }
+        String probe = probeText(data);
+        return probe.contains("Excel.Sheet")
+                || probe.contains("office:spreadsheet")
+                || probe.contains("urn:schemas-microsoft-com:office:spreadsheet")
+                || (probe.contains("<?xml") && probe.toLowerCase(Locale.ROOT).contains("workbook"));
+    }
+
+    private String probeText(byte[] data) {
+        int max = Math.min(data.length, 8192);
+        if (max >= 2 && data[0] == (byte) 0xFF && data[1] == (byte) 0xFE) {
+            return new String(data, 2, max - 2, StandardCharsets.UTF_16LE);
+        }
+        if (max >= 2 && data[0] == (byte) 0xFE && data[1] == (byte) 0xFF) {
+            return new String(data, 2, max - 2, StandardCharsets.UTF_16BE);
+        }
+        if (max >= 2 && data[0] == '<' && data[1] == 0) {
+            return new String(data, 0, max, StandardCharsets.UTF_16LE);
+        }
+        int start = 0;
+        if (max >= 3 && (data[0] & 0xFF) == 0xEF && (data[1] & 0xFF) == 0xBB && (data[2] & 0xFF) == 0xBF) {
+            start = 3;
+        }
+        return new String(data, start, max - start, StandardCharsets.UTF_8);
     }
 
     private Workbook spreadsheetMlToWorkbook(byte[] data) throws Exception {

@@ -77,7 +77,8 @@ public class DynamoPayrollStore {
         putJson(employeesTable, Map.of(
                 "id", s(employee.getId()),
                 "attendanceCode", s(nullToEmpty(employee.getAttendanceCode())),
-                "active", AttributeValue.fromBool(employee.isActive())
+                "active", AttributeValue.fromBool(employee.isActive()),
+                "overtimeEligible", AttributeValue.fromBool(employee.getOvertimeEligible())
         ), employee);
         return employee;
     }
@@ -312,7 +313,14 @@ public class DynamoPayrollStore {
             return Optional.empty();
         }
         try {
-            return Optional.of(mapper.readValue(json.s(), type));
+            T value = mapper.readValue(json.s(), type);
+            if (value instanceof Employee employee) {
+                AttributeValue overtime = item.get("overtimeEligible");
+                if (overtime != null && overtime.bool() != null && overtime.bool()) {
+                    employee.setOvertimeEligible(true);
+                }
+            }
+            return Optional.of(value);
         } catch (Exception ex) {
             throw new IllegalStateException("Could not read " + type.getSimpleName(), ex);
         }

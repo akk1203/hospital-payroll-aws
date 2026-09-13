@@ -29,7 +29,7 @@ Conditions:
 Globals:
   Function:
     Timeout: 60
-    MemorySize: 1769
+    MemorySize: 1024
     Runtime: java21
     Architectures: [x86_64]
 
@@ -394,6 +394,101 @@ Resources:
               Authorizer: NONE
             PayloadFormatVersion: "2.0"
 
+  FilesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-files
+      Handler: io.quarkus.amazon.lambda.runtime.QuarkusStreamHandler::handleRequest
+      CodeUri: files/target/function.zip
+      AutoPublishAlias: live
+      MemorySize: 1769
+      SnapStart:
+        ApplyOn: PublishedVersions
+      Environment:
+        Variables:
+          EMPLOYEES_TABLE: !Ref EmployeesTable
+          BATCHES_TABLE: !Ref BatchesTable
+          PAYSLIPS_TABLE: !Ref PayslipsTable
+          ADJUSTMENTS_TABLE: !Ref AdjustmentsTable
+          MAPPINGS_TABLE: !Ref MappingsTable
+          DATA_BUCKET: !Ref DataBucket
+          COGNITO_CLIENT_ID: !Ref ApiUserPoolClient
+          COGNITO_CLIENT_SECRET: !GetAtt ApiUserPoolClient.ClientSecret
+          COGNITO_USER_POOL_ID: !Ref UserPool
+          COGNITO_HOSTED_UI_DOMAIN: !Sub https://${CognitoDomainPrefix}.auth.${AWS::Region}.amazoncognito.com
+          COGNITO_HOSTED_UI_CLIENT_ID: !Ref UiUserPoolClient
+          COGNITO_GOOGLE_ENABLED: !If [HasGoogle, "true", "false"]
+          UI_ORIGIN: !GetAtt UiBucket.WebsiteURL
+          DEMO_RESET_ENABLED: !If [IsProd, "false", !Ref DemoResetEnabled]
+          PAYROLL_ENVIRONMENT: !Ref EnvironmentName
+          JAVA_TOOL_OPTIONS: -XX:+TieredCompilation -XX:TieredStopAtLevel=1
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref EmployeesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PayslipsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AdjustmentsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MappingsTable
+        - S3CrudPolicy:
+            BucketName: !Ref DataBucket
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:Query
+                - dynamodb:Scan
+              Resource:
+                - !Sub ${PayslipsTable.Arn}/index/*
+      Events:
+        Upload:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/attendance/upload
+            Method: POST
+            Auth:
+              Authorizer: CognitoJwt
+            PayloadFormatVersion: "2.0"
+        PrintedTemplate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/attendance/templates/printed
+            Method: GET
+            Auth:
+              Authorizer: CognitoJwt
+            PayloadFormatVersion: "2.0"
+        MonthExport:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/payroll/month/export
+            Method: GET
+            Auth:
+              Authorizer: CognitoJwt
+            PayloadFormatVersion: "2.0"
+        PayslipExport:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/payroll/{id}/export
+            Method: GET
+            Auth:
+              Authorizer: CognitoJwt
+            PayloadFormatVersion: "2.0"
+        PayslipPdf:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /api/payroll/{id}/pdf
+            Method: GET
+            Auth:
+              Authorizer: CognitoJwt
+            PayloadFormatVersion: "2.0"
+
 Outputs:
   ApiUrl:
     Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
@@ -405,5 +500,7 @@ Outputs:
     Value: !Ref UserPool
   FunctionName:
     Value: !Ref PayrollFunction
+  FilesFunctionName:
+    Value: !Ref FilesFunction
   FunctionAlias:
     Value: live

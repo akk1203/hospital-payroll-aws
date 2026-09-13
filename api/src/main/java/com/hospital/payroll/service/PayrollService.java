@@ -70,8 +70,10 @@ public class PayrollService {
         YearMonth month = YearMonth.parse(payslip.getMonth());
         List<LocalDate> dates = workingDates(batch, month);
         BigDecimal hoursPerDay = hoursPerDay(employee);
+        BigDecimal dailyRate = payslip.getDailyRate() == null ? BigDecimal.ZERO : payslip.getDailyRate();
         BigDecimal hourlyRate = payslip.getHourlyRate() == null ? BigDecimal.ZERO : payslip.getHourlyRate();
         var adjustedDates = dayAdjustmentService.adjustedDates(payslip.getEmployeeId());
+        boolean overtime = employee.getOvertimeEligible();
 
         PayslipDetail detail = new PayslipDetail();
         detail.setPayslip(payslip);
@@ -88,11 +90,16 @@ public class PayrollService {
             row.setCredit(day == null || day.getCredit() == null ? DayCredit.WORKED : day.getCredit());
             BigDecimal punched = punchedHours(day);
             row.setPunchedHours(punched);
+            boolean missingPunch = incompletePunch(day);
             BigDecimal credited = status == DayStatus.PRESENT ? hoursForDay(day, hoursPerDay) : BigDecimal.ZERO;
             row.setCreditedHours(credited.setScale(2, RoundingMode.HALF_UP));
-            row.setPay(hourlyRate.multiply(credited).setScale(2, RoundingMode.HALF_UP));
+            row.setPay(dayPay(overtime, status, day, hoursPerDay, dailyRate, hourlyRate, credited)
+                    .setScale(2, RoundingMode.HALF_UP));
             row.setAdjusted(adjustedDates.contains(date));
-            row.setIncompletePunch(incompletePunch(day));
+            row.setIncompletePunch(missingPunch);
+            boolean halfDay = day != null && day.getCredit() == DayCredit.HALF_DAY;
+            row.setShortHours(status == DayStatus.PRESENT && !missingPunch && !halfDay
+                    && punched.compareTo(hoursPerDay) < 0);
             days.add(row);
         }
         detail.setDays(days);
@@ -184,12 +191,31 @@ public class PayrollService {
     }
 
     private BigDecimal hoursForDay(AttendanceDay day, BigDecimal hoursPerDay) {
+        if (incompletePunch(day)) {
+            return hoursPerDay;
+        }
         DayCredit credit = day == null || day.getCredit() == null ? DayCredit.WORKED : day.getCredit();
         return switch (credit) {
             case FULL_DAY -> hoursPerDay;
             case HALF_DAY -> hoursPerDay.divide(new BigDecimal("2"), 2, RoundingMode.HALF_UP);
             case WORKED -> punchedHours(day);
         };
+    }
+
+    private BigDecimal dayPay(boolean overtimeEligible, DayStatus status, AttendanceDay day,
+                              BigDecimal hoursPerDay, BigDecimal dailyRate, BigDecimal hourlyRate,
+                              BigDecimal creditedHours) {
+        if (status != DayStatus.PRESENT) {
+            return BigDecimal.ZERO;
+        }
+        if (overtimeEligible) {
+            return hourlyRate.multiply(creditedHours);
+        }
+        DayCredit credit = day == null || day.getCredit() == null ? DayCredit.WORKED : day.getCredit();
+        if (credit == DayCredit.HALF_DAY && !incompletePunch(day)) {
+            return dailyRate.divide(new BigDecimal("2"), 2, RoundingMode.HALF_UP);
+        }
+        return dailyRate;
     }
 
     private boolean incompletePunch(AttendanceDay day) {
@@ -221,6 +247,7 @@ public class PayrollService {
         int absent = 0;
         BigDecimal hoursPerDay = hoursPerDay(employee);
         BigDecimal workedHours = BigDecimal.ZERO;
+        BigDecimal payableDayUnits = BigDecimal.ZERO;
         List<String> notes = new ArrayList<>();
         for (LocalDate date : workingDates) {
             AttendanceDay day = dayOn(person, date);
@@ -230,12 +257,20 @@ public class PayrollService {
                     present++;
                     BigDecimal dayHours = hoursForDay(day, hoursPerDay);
                     workedHours = workedHours.add(dayHours);
-                    DayCredit credit = day.getCredit() == null ? DayCredit.WORKED : day.getCredit();
+                    DayCredit credit = day == null || day.getCredit() == null ? DayCredit.WORKED : day.getCredit();
+                    if (credit == DayCredit.HALF_DAY && !incompletePunch(day)) {
+                        payableDayUnits = payableDayUnits.add(new BigDecimal("0.5"));
+                    } else {
+                        payableDayUnits = payableDayUnits.add(BigDecimal.ONE);
+                    }
                     String inOut = (day.getTimeIn() == null ? "-" : day.getTimeIn())
                             + "–" + (day.getTimeOut() == null ? "-" : day.getTimeOut());
                     notes.add(date + ": " + inOut + " " + credit + " (" + dayHours + "h)");
                     if (day.getNotes() != null && !day.getNotes().isBlank()) {
                         notes.add(date + " note: " + day.getNotes());
+                    }
+                    if (incompletePunch(day)) {
+                        notes.add(date + ": missing in/out counted as full day");
                     }
                 }
                 case LEAVE -> leave++;
@@ -244,23 +279,29 @@ public class PayrollService {
         }
 
         int allowed = Math.max(0, employee.getAllowedLeavesPerMonth());
-        int sheetDays = workingDates.size();
-        int payableDays = Math.max(0, sheetDays - allowed);
-        int unpaidDays = Math.max(0, absent + leave - allowed);
-        int paidLeaves = Math.min(allowed, leave + absent);
+        int unusedLeaves = Math.max(0, allowed - leave);
+        int extraLeave = Math.max(0, leave - allowed);
+        int unpaidDays = absent + extraLeave;
+        int paidLeaves = Math.min(allowed, leave);
         BigDecimal salary = employee.getSalaryPerMonth() == null ? BigDecimal.ZERO : employee.getSalaryPerMonth();
-        BigDecimal expectedHours = hoursPerDay.multiply(BigDecimal.valueOf(payableDays));
-        BigDecimal hourlyRate = expectedHours.signum() == 0
+        BigDecimal dailyRate = salary.divide(new BigDecimal("30"), 4, RoundingMode.HALF_UP);
+        BigDecimal hourlyRate = hoursPerDay.signum() == 0
                 ? BigDecimal.ZERO
-                : salary.divide(expectedHours, 4, RoundingMode.HALF_UP);
-        BigDecimal paidLeaveHours = hoursPerDay.multiply(BigDecimal.valueOf(allowed));
-        BigDecimal payableHours = workedHours;
-        BigDecimal requiredPresentHours = hoursPerDay.multiply(BigDecimal.valueOf(present));
-        BigDecimal overtimeHours = workedHours.subtract(requiredPresentHours).max(BigDecimal.ZERO);
-        BigDecimal dailyRate = hourlyRate.multiply(hoursPerDay).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal net = hourlyRate.multiply(payableHours).setScale(2, RoundingMode.HALF_UP);
-        BigDecimal expectedPay = hourlyRate.multiply(expectedHours).setScale(2, RoundingMode.HALF_UP);
+                : dailyRate.divide(hoursPerDay, 4, RoundingMode.HALF_UP);
+        BigDecimal expectedHours = hoursPerDay.multiply(new BigDecimal("30"));
+        BigDecimal paidLeaveHours = hoursPerDay.multiply(BigDecimal.valueOf(paidLeaves));
+        BigDecimal overtimePay = dailyRate.multiply(BigDecimal.valueOf(unusedLeaves)).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal payableDays = payableDayUnits.add(BigDecimal.valueOf(paidLeaves));
+        BigDecimal basePay;
+        if (employee.getOvertimeEligible()) {
+            basePay = hourlyRate.multiply(workedHours.add(paidLeaveHours)).setScale(2, RoundingMode.HALF_UP);
+        } else {
+            basePay = dailyRate.multiply(payableDays).setScale(2, RoundingMode.HALF_UP);
+        }
+        BigDecimal net = basePay.add(overtimePay).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal expectedPay = salary.setScale(2, RoundingMode.HALF_UP);
         BigDecimal deduction = expectedPay.subtract(net).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal overtimeHours = hoursPerDay.multiply(BigDecimal.valueOf(unusedLeaves)).setScale(2, RoundingMode.HALF_UP);
 
         Payslip payslip = new Payslip();
         payslip.setEmployeeId(employee.getId());
@@ -279,13 +320,17 @@ public class PayrollService {
         payslip.setExpectedHours(expectedHours.setScale(2, RoundingMode.HALF_UP));
         payslip.setWorkedHours(workedHours.setScale(2, RoundingMode.HALF_UP));
         payslip.setPaidLeaveHours(paidLeaveHours.setScale(2, RoundingMode.HALF_UP));
-        payslip.setPayableHours(payableHours.setScale(2, RoundingMode.HALF_UP));
-        payslip.setOvertimeHours(overtimeHours.setScale(2, RoundingMode.HALF_UP));
+        payslip.setPayableHours(workedHours.add(paidLeaveHours).setScale(2, RoundingMode.HALF_UP));
+        payslip.setOvertimeHours(overtimeHours);
         payslip.setMonthlySalary(salary);
         payslip.setHourlyRate(hourlyRate.setScale(2, RoundingMode.HALF_UP));
-        payslip.setDailyRate(dailyRate);
+        payslip.setDailyRate(dailyRate.setScale(2, RoundingMode.HALF_UP));
         payslip.setLeaveWithoutPayDeduction(deduction);
         payslip.setNetPay(net);
+        payslip.setOvertimePay(overtimePay);
+        payslip.setOvertimeEligible(employee.getOvertimeEligible());
+        payslip.setUnusedLeaveDays(unusedLeaves);
+        payslip.setPayableDays(payableDays.setScale(2, RoundingMode.HALF_UP));
         payslip.setNotes(notes);
         return payslip;
     }
