@@ -52,6 +52,7 @@ Resources:
           - OPTIONS
         MaxAge: 86400
       Auth:
+        DefaultAuthorizer: CognitoJwt
         Authorizers:
           CognitoJwt:
             IdentitySource: $request.header.Authorization
@@ -355,6 +356,15 @@ Resources:
             Method: DELETE
             Auth:
               Authorizer: CognitoJwt
+            PayloadFormatVersion: "2.0"
+        ProxyOptions:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /{proxy+}
+            Method: OPTIONS
+            Auth:
+              Authorizer: NONE
             PayloadFormatVersion: "2.0"
         PublicConfig:
           Type: HttpApi
