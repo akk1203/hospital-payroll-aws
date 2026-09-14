@@ -280,7 +280,6 @@ Resources:
           UI_ORIGIN: !GetAtt UiBucket.WebsiteURL
           DEMO_RESET_ENABLED: !If [IsProd, "false", !Ref DemoResetEnabled]
           PAYROLL_ENVIRONMENT: !Ref EnvironmentName
-          PUBLIC_API_URL: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
           JAVA_TOOL_OPTIONS: -XX:+TieredCompilation -XX:TieredStopAtLevel=1
       Policies:
         - DynamoDBCrudPolicy:
@@ -422,7 +421,6 @@ Resources:
           UI_ORIGIN: !GetAtt UiBucket.WebsiteURL
           DEMO_RESET_ENABLED: !If [IsProd, "false", !Ref DemoResetEnabled]
           PAYROLL_ENVIRONMENT: !Ref EnvironmentName
-          PUBLIC_API_URL: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
           JAVA_TOOL_OPTIONS: -XX:+TieredCompilation -XX:TieredStopAtLevel=1
       Policies:
         - DynamoDBCrudPolicy:

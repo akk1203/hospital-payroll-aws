@@ -27,10 +27,7 @@ public class WhatsAppPayslipService {
     @ConfigProperty(name = "payroll.aws.data-bucket")
     String dataBucket;
 
-    @ConfigProperty(name = "payroll.aws.public-api-url")
-    String publicApiUrl;
-
-    public WhatsAppShareResponse share(String payslipId) throws Exception {
+    public WhatsAppShareResponse share(String payslipId, String publicApiBase) throws Exception {
         Payslip slip = payrollService.get(payslipId);
         Employee employee = store.findEmployee(slip.getEmployeeId())
                 .orElseThrow(() -> new IllegalArgumentException("Employee not found"));
@@ -48,7 +45,7 @@ public class WhatsAppPayslipService {
                 .contentDisposition("inline; filename=\"" + PayslipPdfExporter.filename(slip) + "\"")
                 .build(), RequestBody.fromBytes(pdf));
 
-        String pdfUrl = publicBase() + "/api/payroll/public-pdf/" + token;
+        String pdfUrl = publicBase(publicApiBase) + "/api/payroll/public-pdf/" + token;
         String text = "Hello " + nullToEmpty(slip.getEmployeeName())
                 + ", your salary slip for " + nullToEmpty(slip.getMonth())
                 + " is ready. Net pay: INR " + (slip.getNetPay() == null ? "0" : slip.getNetPay().toPlainString())
@@ -81,11 +78,11 @@ public class WhatsAppPayslipService {
         return "payslips/" + token + ".pdf";
     }
 
-    private String publicBase() {
-        if (publicApiUrl == null || publicApiUrl.isBlank()) {
-            throw new IllegalStateException("PUBLIC_API_URL is not configured");
+    private static String publicBase(String publicApiBase) {
+        if (publicApiBase == null || publicApiBase.isBlank()) {
+            throw new IllegalStateException("Could not determine the public API URL");
         }
-        return publicApiUrl.replaceAll("/+$", "");
+        return publicApiBase.replaceAll("/+$", "");
     }
 
     static String internationalDigits(String raw) {

@@ -13,6 +13,8 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
@@ -70,8 +72,8 @@ public class PayrollExportResource {
 
     @POST
     @Path("/{id}/whatsapp")
-    public WhatsAppShareResponse whatsapp(@PathParam("id") String id) throws Exception {
-        return whatsAppPayslipService.share(id);
+    public WhatsAppShareResponse whatsapp(@PathParam("id") String id, @Context HttpHeaders headers) throws Exception {
+        return whatsAppPayslipService.share(id, publicApiBase(headers));
     }
 
     @GET
@@ -82,5 +84,25 @@ public class PayrollExportResource {
         return Response.ok(bytes, "application/octet-stream")
                 .header("Content-Disposition", "inline; filename=\"salary-slip.pdf\"")
                 .build();
+    }
+
+    static String publicApiBase(HttpHeaders headers) {
+        String host = header(headers, "host");
+        if (host == null || host.isBlank()) {
+            throw new IllegalStateException("Could not determine the public API URL");
+        }
+        String proto = header(headers, "x-forwarded-proto");
+        if (proto == null || proto.isBlank()) {
+            proto = "https";
+        }
+        return proto + "://" + host;
+    }
+
+    private static String header(HttpHeaders headers, String name) {
+        if (headers == null) {
+            return null;
+        }
+        String value = headers.getHeaderString(name);
+        return value == null ? null : value.trim();
     }
 }
