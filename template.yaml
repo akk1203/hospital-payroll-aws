@@ -183,41 +183,6 @@ Resources:
             Action: s3:GetObject
             Resource: !Sub ${UiBucket.Arn}/*
 
-  UiDistribution:
-    Type: AWS::CloudFront::Distribution
-    Properties:
-      DistributionConfig:
-        Enabled: true
-        IPV6Enabled: true
-        HttpVersion: http2
-        Comment: !Sub ${AWS::StackName} payroll UI
-        PriceClass: PriceClass_All
-        DefaultRootObject: index.html
-        Origins:
-          - Id: UiWebsite
-            DomainName: !Sub ${UiBucket}.s3-website-${AWS::Region}.amazonaws.com
-            CustomOriginConfig:
-              HTTPPort: 80
-              OriginProtocolPolicy: http-only
-        DefaultCacheBehavior:
-          TargetOriginId: UiWebsite
-          ViewerProtocolPolicy: redirect-to-https
-          AllowedMethods: [GET, HEAD, OPTIONS]
-          CachedMethods: [GET, HEAD]
-          Compress: true
-          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
-        CustomErrorResponses:
-          - ErrorCode: 403
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-            ErrorCachingMinTTL: 0
-          - ErrorCode: 404
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-            ErrorCachingMinTTL: 0
-        ViewerCertificate:
-          CloudFrontDefaultCertificate: true
-
   UserPool:
     Type: AWS::Cognito::UserPool
     Properties:
@@ -284,12 +249,8 @@ Resources:
       AllowedOAuthScopes: [openid, email, profile]
       CallbackURLs:
         - http://localhost
-        - !GetAtt UiBucket.WebsiteURL
-        - !Sub https://${UiDistribution.DomainName}
       LogoutURLs:
         - http://localhost
-        - !GetAtt UiBucket.WebsiteURL
-        - !Sub https://${UiDistribution.DomainName}
       SupportedIdentityProviders: [COGNITO]
       PreventUserExistenceErrors: ENABLED
 
@@ -316,7 +277,7 @@ Resources:
           COGNITO_HOSTED_UI_DOMAIN: !Sub https://${CognitoDomainPrefix}.auth.${AWS::Region}.amazoncognito.com
           COGNITO_HOSTED_UI_CLIENT_ID: !Ref UiUserPoolClient
           COGNITO_GOOGLE_ENABLED: !If [HasGoogle, "true", "false"]
-          UI_ORIGIN: !Sub https://${UiDistribution.DomainName}
+          UI_ORIGIN: !GetAtt UiBucket.WebsiteURL
           DEMO_RESET_ENABLED: !If [IsProd, "false", !Ref DemoResetEnabled]
           PAYROLL_ENVIRONMENT: !Ref EnvironmentName
           JAVA_TOOL_OPTIONS: -XX:+TieredCompilation -XX:TieredStopAtLevel=1
@@ -457,7 +418,7 @@ Resources:
           COGNITO_HOSTED_UI_DOMAIN: !Sub https://${CognitoDomainPrefix}.auth.${AWS::Region}.amazoncognito.com
           COGNITO_HOSTED_UI_CLIENT_ID: !Ref UiUserPoolClient
           COGNITO_GOOGLE_ENABLED: !If [HasGoogle, "true", "false"]
-          UI_ORIGIN: !Sub https://${UiDistribution.DomainName}
+          UI_ORIGIN: !GetAtt UiBucket.WebsiteURL
           DEMO_RESET_ENABLED: !If [IsProd, "false", !Ref DemoResetEnabled]
           PAYROLL_ENVIRONMENT: !Ref EnvironmentName
           JAVA_TOOL_OPTIONS: -XX:+TieredCompilation -XX:TieredStopAtLevel=1
@@ -550,8 +511,6 @@ Outputs:
   ApiUrl:
     Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
   UiUrl:
-    Value: !Sub https://${UiDistribution.DomainName}
-  UiHttpUrl:
     Value: !GetAtt UiBucket.WebsiteURL
   UiBucketName:
     Value: !Ref UiBucket
