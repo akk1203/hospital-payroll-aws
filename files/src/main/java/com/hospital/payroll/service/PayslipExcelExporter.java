@@ -1,5 +1,6 @@
 package com.hospital.payroll.service;
 
+import com.hospital.payroll.HospitalProfile;
 import com.hospital.payroll.api.DayBreakdown;
 import com.hospital.payroll.api.PayslipDetail;
 import com.hospital.payroll.model.Payslip;
@@ -83,8 +84,11 @@ public final class PayslipExcelExporter {
 
             int r = 0;
             Row titleRow = sheet.createRow(r++);
-            cell(titleRow, 0, "Employee daily salary breakdown", title);
+            cell(titleRow, 0, HospitalProfile.NAME, title);
             sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 6));
+            info(sheet, r++, label, "Address", HospitalProfile.ADDRESS);
+            info(sheet, r++, label, "Phone", HospitalProfile.PHONE);
+            info(sheet, r++, label, "Document", "Employee daily salary breakdown");
 
             r++;
             info(sheet, r++, label, "Employee", slip.getEmployeeName());
@@ -92,13 +96,15 @@ public final class PayslipExcelExporter {
             info(sheet, r++, label, "Month", slip.getMonth());
             info(sheet, r++, label, "Hours / day", text(slip.getHoursPerDay()));
             info(sheet, r++, label, "Allowed leaves", String.valueOf(slip.getAllowedLeaves()));
-            info(sheet, r++, label, "Expected hours (30 × hours/day)", text(slip.getExpectedHours()));
+            info(sheet, r++, label, "Scheduled hours ((days in month − allowed leave) × hours/day)", text(slip.getExpectedHours()));
             info(sheet, r++, label, "Pay type", slip.getOvertimeEligible() ? "Hourly (overtime allowed)" : "Per day");
-            info(sheet, r++, label, "Daily rate (salary ÷ 30)", text(slip.getDailyRate()));
-            info(sheet, r++, label, "Hourly rate (INR)", text(slip.getHourlyRate()));
-            info(sheet, r++, label, "Unused leave overtime days", String.valueOf(slip.getUnusedLeaveDays()));
-            info(sheet, r++, label, "Overtime pay", text(slip.getOvertimePay()));
+            if (slip.getOvertimeEligible() && slip.getOvertimeHours() != null && slip.getOvertimeHours().signum() > 0) {
+                info(sheet, r++, label, "Overtime hours", text(slip.getOvertimeHours()));
+                info(sheet, r++, label, "Overtime pay", text(slip.getOvertimePay()));
+            }
             info(sheet, r++, label, "Present days", String.valueOf(slip.getPresentDays()));
+            info(sheet, r++, label, "Leave days", String.valueOf(PayslipPdfExporter.displayLeaveDays(slip)));
+            info(sheet, r++, label, "Absent days", String.valueOf(PayslipPdfExporter.displayAbsentDays(slip)));
             info(sheet, r++, label, "Hours worked", text(slip.getWorkedHours()));
             info(sheet, r++, label, "Payable hours", text(slip.getPayableHours()));
             info(sheet, r++, label, "Gross monthly salary", text(slip.getMonthlySalary()));

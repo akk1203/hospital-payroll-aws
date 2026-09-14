@@ -1,5 +1,6 @@
 package com.hospital.payroll.service;
 
+import com.hospital.payroll.HospitalProfile;
 import com.hospital.payroll.model.Payslip;
 import com.lowagie.text.Document;
 import com.lowagie.text.Element;
@@ -40,11 +41,19 @@ public final class PayslipPdfExporter {
             Font moneyFont = new Font(Font.HELVETICA, 12, Font.BOLD, TEAL);
             Font small = new Font(Font.HELVETICA, 8, Font.NORMAL, new Color(72, 101, 129));
 
-            Paragraph heading = new Paragraph("Hospital Payroll", titleFont);
+            Paragraph heading = new Paragraph(HospitalProfile.NAME, titleFont);
             heading.setAlignment(Element.ALIGN_CENTER);
             document.add(heading);
+            Paragraph address = new Paragraph(HospitalProfile.ADDRESS, small);
+            address.setAlignment(Element.ALIGN_CENTER);
+            address.setSpacingBefore(4);
+            document.add(address);
+            Paragraph phone = new Paragraph("Phone: " + HospitalProfile.PHONE, small);
+            phone.setAlignment(Element.ALIGN_CENTER);
+            document.add(phone);
             Paragraph slipTitle = new Paragraph("Salary slip", subFont);
             slipTitle.setAlignment(Element.ALIGN_CENTER);
+            slipTitle.setSpacingBefore(10);
             slipTitle.setSpacingAfter(16);
             document.add(slipTitle);
 
@@ -56,38 +65,35 @@ public final class PayslipPdfExporter {
             addInfo(identity, labelFont, valueFont, "Month", monthLabel(slip.getMonth()));
             addInfo(identity, labelFont, valueFont, "Position", blank(slip.getPosition()));
             addInfo(identity, labelFont, valueFont, "Pay type",
-                    slip.getOvertimeEligible() ? "Hourly (overtime allowed)" : "Per day (no overtime)");
+                    slip.getOvertimeEligible() ? "Hourly (overtime allowed)" : "Per day");
             document.add(identity);
 
-            PdfPTable attendance = table(4);
+            boolean showOvertimeHours = slip.getOvertimeEligible() && hasAmount(slip.getOvertimeHours());
+            PdfPTable attendance = table(showOvertimeHours ? 4 : 3);
             headerCell(attendance, "Present days");
             headerCell(attendance, "Leave days");
             headerCell(attendance, "Absent days");
-            headerCell(attendance, "Unused leave OT");
+            if (showOvertimeHours) {
+                headerCell(attendance, "Overtime hours");
+            }
             valueCell(attendance, String.valueOf(slip.getPresentDays()));
-            valueCell(attendance, String.valueOf(slip.getLeaveDays()));
-            valueCell(attendance, String.valueOf(slip.getAbsentDays()));
-            valueCell(attendance, String.valueOf(slip.getUnusedLeaveDays()));
+            valueCell(attendance, String.valueOf(displayLeaveDays(slip)));
+            valueCell(attendance, String.valueOf(displayAbsentDays(slip)));
+            if (showOvertimeHours) {
+                valueCell(attendance, text(slip.getOvertimeHours()));
+            }
             document.add(attendance);
-
-            PdfPTable rates = table(4);
-            rates.setSpacingBefore(10);
-            headerCell(rates, "Hours / day");
-            headerCell(rates, "Daily rate");
-            headerCell(rates, "Hourly rate");
-            headerCell(rates, slip.getOvertimeEligible() ? "Payable hours" : "Payable days");
-            valueCell(rates, text(slip.getHoursPerDay()));
-            valueCell(rates, inr(slip.getDailyRate()));
-            valueCell(rates, inr(slip.getHourlyRate()));
-            valueCell(rates, slip.getOvertimeEligible() ? text(slip.getPayableHours()) : text(slip.getPayableDays()));
-            document.add(rates);
 
             PdfPTable pay = table(2);
             pay.setSpacingBefore(16);
             headerCell(pay, "Earnings / deductions");
             headerCell(pay, "Amount (INR)");
-            addPayRow(pay, valueFont, "Gross monthly salary", inr(slip.getMonthlySalary()));
-            addPayRow(pay, valueFont, "Overtime (unused allowed leave)", inr(slip.getOvertimePay()));
+            addPayRow(pay, valueFont, slip.getOvertimeEligible()
+                    ? "Scheduled hours (monthly salary)"
+                    : "Gross monthly salary", inr(slip.getMonthlySalary()));
+            if (slip.getOvertimeEligible() && hasAmount(slip.getOvertimeHours())) {
+                addPayRow(pay, valueFont, "Overtime (" + text(slip.getOvertimeHours()) + " h)", inr(slip.getOvertimePay()));
+            }
             addPayRow(pay, valueFont, "Shortfall / unpaid days", inr(slip.getLeaveWithoutPayDeduction()));
             PdfPCell netLabel = new PdfPCell(new Phrase("Net pay", moneyFont));
             netLabel.setPadding(8);
@@ -103,7 +109,10 @@ public final class PayslipPdfExporter {
             document.add(pay);
 
             Paragraph note = new Paragraph(
-                    "Daily rate is monthly salary ÷ 30. Hourly rate is daily rate ÷ hours per day. "
+                    "Without overtime, daily rate is monthly salary ÷ days in the month. "
+                            + "With overtime, scheduled hours ((days in the month − allowed leave) × hours/day) are paid as the monthly salary. "
+                            + "Overtime credited hours are rounded to 15 minutes. "
+                            + "Overtime is extra credited hours in the month above that schedule, paid at monthly salary ÷ 30 ÷ hours/day. "
                             + "Missing in or out is counted as a full day. This slip is generated from the calculated payroll.",
                     small);
             note.setSpacingBefore(18);
@@ -193,5 +202,27 @@ public final class PayslipPdfExporter {
 
     private static String blank(String value) {
         return value == null || value.isBlank() ? "—" : value;
+    }
+
+    static int displayLeaveDays(Payslip slip) {
+        int allowed = Math.max(0, slip.getAllowedLeaves());
+        int absent = Math.max(0, slip.getAbsentDays());
+        if (absent >= allowed && allowed > 0) {
+            return allowed;
+        }
+        return Math.max(0, slip.getLeaveDays());
+    }
+
+    static int displayAbsentDays(Payslip slip) {
+        int allowed = Math.max(0, slip.getAllowedLeaves());
+        int absent = Math.max(0, slip.getAbsentDays());
+        if (absent >= allowed && allowed > 0) {
+            return absent - allowed;
+        }
+        return absent;
+    }
+
+    private static boolean hasAmount(BigDecimal value) {
+        return value != null && value.signum() > 0;
     }
 }

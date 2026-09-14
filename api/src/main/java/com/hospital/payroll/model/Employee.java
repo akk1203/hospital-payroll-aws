@@ -21,8 +21,9 @@ public class Employee {
     private int allowedLeavesPerMonth;
 
     /**
-     * Required duty hours for a working day. Daily rate is monthly salary ÷ 30.
-     * Hourly rate is daily rate ÷ this value.
+     * Required duty hours for a working day.
+     * Without overtime, daily rate is monthly salary ÷ days in that month.
+     * With overtime, hourly rate is (monthly salary ÷ 30) ÷ this value.
      */
     private BigDecimal hoursPerDay;
 

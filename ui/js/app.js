@@ -374,7 +374,7 @@ async function loginView() {
     return `
         <form class="form auth" id="login-form">
             <h1>Log in</h1>
-            <p class="lead">Use your hospital account, or sign in with Gmail.</p>
+            <p class="lead">Surat Multispeciality Hospital &amp; ICU &amp; TRAUMA CENTER. Use your hospital account, or sign in with Gmail.</p>
             ${banner}
             <div id="login-error"></div>
             <label>Email <input type="email" name="email" required autocomplete="username"/></label>
@@ -448,8 +448,8 @@ async function homeView() {
             <td data-label="Actions"><a href="#/attendance/${batch.id}">Open</a></td>
         </tr>`).join("") || `<tr><td class="empty" colspan="4">No attendance files yet.</td></tr>`;
     return `
-        <h1>HR payroll for the hospital</h1>
-        <p class="lead">Create employees, upload the biometric attendance report, map names from the file, then calculate monthly salary in INR.</p>
+        <h1>HR payroll</h1>
+        <p class="lead">Surat Multispeciality Hospital &amp; ICU &amp; TRAUMA CENTER · 203-204, Shree Darshan Complex, Sachin Station Rd, Opp. LD High School, Raj Nagar, Sachin, Surat, Gujarat 394230 · +91 95371 44839. Create employees, upload the biometric attendance report, map names from the file, then calculate monthly salary in INR.</p>
         <div class="cards">
             <a class="card" href="#/employees"><h2>Employees</h2><p>${employees.length} on file</p></a>
             <a class="card" href="#/attendance"><h2>Attendance</h2><p>Upload CSV or Excel and map sheet names.</p></a>
@@ -532,7 +532,7 @@ async function employeeFormView(id) {
             <label>Hours per day <input type="number" step="0.25" min="0.25" name="hoursPerDay" required value="${escapeHtml(employee.hoursPerDay ?? 8)}"/></label>
             <label>Allowed leaves per month <input type="number" min="0" name="allowedLeavesPerMonth" value="${escapeHtml(employee.allowedLeavesPerMonth ?? 0)}"/></label>
             <label>WhatsApp number <input name="whatsappNumber" inputmode="tel" placeholder="e.g. 9876543210 or +91 9876543210" value="${escapeHtml(employee.whatsappNumber || "")}"/></label>
-            <label class="check"><input type="checkbox" id="overtimeEligible" name="overtimeEligible" ${otPay(employee) ? "checked" : ""}/> Overtime allowed (pay by punched hours). Unchecked = daily rate, not hours.</label>
+            <label class="check"><input type="checkbox" id="overtimeEligible" name="overtimeEligible" ${otPay(employee) ? "checked" : ""}/> Overtime allowed (hourly OT = monthly salary ÷ 30 ÷ hours/day). Unchecked = daily rate from this month's days.</label>
             <label>Attendance sheet ID <input name="attendanceCode" value="${escapeHtml(employee.attendanceCode || "")}" placeholder="Matches printed ID, e.g. 6"/></label>
             <div class="inline">
                 <button class="btn" type="submit">Save</button>
@@ -733,7 +733,7 @@ async function payrollView() {
         </tr>`).join("") || `<tr><td class="empty" colspan="10">No payslips for ${escapeHtml(month)} yet. Choose that month and click Calculate.</td></tr>`;
     return `
         <h1>Monthly salary</h1>
-        <p>Daily rate = monthly salary ÷ 30 (always 30 days). Hourly rate = daily rate ÷ hours per day. If overtime is allowed, pay is by punched hours. If overtime is not allowed, pay is a daily rate (short days still count as a full day and are highlighted). Unused allowed leave is paid as overtime (one daily rate per unused day). Missing in or out is counted as a full day and highlighted.</p>
+        <p>If overtime is not allowed, daily rate = monthly salary ÷ days in that month (28/29/30/31). A present day credits the scheduled hours/day (for example 8 hours); otherwise credited hours are 0. Short days still count as a full day and are highlighted. If overtime is allowed, credited hours are rounded to 15 minutes (the first 30 minutes after the scheduled day stay at the schedule; 45 minutes credits 30 extra minutes; 50 minutes and above round to 15 minutes). Scheduled hours = (days in the month − allowed leave) × hours/day and those hours are paid as the monthly salary. Overtime is extra credited hours in the month above that schedule, paid at monthly salary ÷ 30 ÷ hours/day. Missing in or out is counted as a full day and highlighted.</p>
         <p>Days you change on the daily breakdown are kept if you upload the same month again and recalculate. The file will not overwrite those hours.</p>
         <form class="form" id="payroll-form">
             <label>Attendance file
@@ -925,8 +925,8 @@ async function payslipDetailView(id) {
         <h1>${escapeHtml(slip.employeeName)}</h1>
         <p class="lead">${escapeHtml(slip.position || "")} · ${escapeHtml(month)} ·
             ${Number(slip.hoursPerDay || 0)} hours/day · ${money(slip.dailyRate)} / day · ${money(slip.hourlyRate)} / hour ·
-            ${otPay(slip) ? "Overtime allowed (hourly pay)" : "No overtime (per-day pay)"} ·
-            Unused leave OT ${slip.unusedLeaveDays || 0} day(s) ${money(slip.overtimePay)} ·
+            ${otPay(slip) ? "Overtime allowed (monthly salary for scheduled hours + OT hourly on extra month hours)" : "No overtime (daily rate = salary ÷ days in month)"} ·
+            OT ${Number(slip.overtimeHours || 0).toFixed(2)}h ${money(slip.overtimePay)} ·
             Net pay ${money(slip.netPay)}</p>
         <p>Change in/out times, or mark a day as <strong>full day</strong> (${escapeHtml(slip.hoursPerDay)}h) or
             <strong>half day</strong> (${(Number(slip.hoursPerDay || 0) / 2).toFixed(2)}h). Salary is recalculated when you save.

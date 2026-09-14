@@ -1,5 +1,6 @@
 package com.hospital.payroll.service;
 
+import com.hospital.payroll.HospitalProfile;
 import com.hospital.payroll.model.Payslip;
 import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
@@ -65,8 +66,11 @@ public final class MonthlyPayrollExcelExporter {
 
             int r = 0;
             Row titleRow = sheet.createRow(r++);
-            cell(titleRow, 0, "Hospital payroll — " + month, title);
+            cell(titleRow, 0, HospitalProfile.NAME + " — payroll " + month, title);
             sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 14));
+            Row addressRow = sheet.createRow(r++);
+            cell(addressRow, 0, HospitalProfile.ADDRESS + " · Phone: " + HospitalProfile.PHONE, box);
+            sheet.addMergedRegion(new CellRangeAddress(1, 1, 0, 14));
             r++;
 
             String[] headers = {
