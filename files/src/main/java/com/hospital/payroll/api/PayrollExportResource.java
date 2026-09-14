@@ -5,8 +5,10 @@ import com.hospital.payroll.service.MonthlyPayrollExcelExporter;
 import com.hospital.payroll.service.PayrollService;
 import com.hospital.payroll.service.PayslipExcelExporter;
 import com.hospital.payroll.service.PayslipPdfExporter;
+import com.hospital.payroll.service.WhatsAppPayslipService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
@@ -23,6 +25,8 @@ public class PayrollExportResource {
 
     @Inject
     PayrollService payrollService;
+    @Inject
+    WhatsAppPayslipService whatsAppPayslipService;
 
     @GET
     @Path("/month/export")
@@ -61,6 +65,22 @@ public class PayrollExportResource {
         return Response.ok(bytes, "application/octet-stream")
                 .header("Content-Disposition",
                         "attachment; filename=\"" + PayslipPdfExporter.filename(slip) + "\"")
+                .build();
+    }
+
+    @POST
+    @Path("/{id}/whatsapp")
+    public WhatsAppShareResponse whatsapp(@PathParam("id") String id) throws Exception {
+        return whatsAppPayslipService.share(id);
+    }
+
+    @GET
+    @Path("/public-pdf/{token}")
+    @Produces("application/octet-stream")
+    public Response publicPdf(@PathParam("token") String token) {
+        byte[] bytes = whatsAppPayslipService.downloadPublicPdf(token);
+        return Response.ok(bytes, "application/octet-stream")
+                .header("Content-Disposition", "inline; filename=\"salary-slip.pdf\"")
                 .build();
     }
 }

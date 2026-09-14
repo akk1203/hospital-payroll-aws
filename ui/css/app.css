@@ -65,6 +65,7 @@ nav .nav-reset:hover { color: #fff; background: rgba(155, 27, 48, 0.55); }
 h1 { font-size: clamp(1.25rem, 4vw, 1.8rem); margin: 0.4rem 0 0.8rem; }
 h2 { font-size: 1.1rem; }
 .lead { color: var(--muted); max-width: 46rem; }
+.muted { color: var(--muted); }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 1rem; }
 .card, table, .form, .panel {
     background: var(--card);

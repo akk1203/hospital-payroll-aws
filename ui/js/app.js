@@ -1,3 +1,37 @@
+function hasWhatsApp(number) {
+    if (!number) {
+        return false;
+    }
+    const digits = String(number).replace(/\D/g, "").replace(/^0+/, "");
+    return digits.length >= 10;
+}
+
+async function sendPayslipWhatsApp(payslipId, options = {}) {
+    const result = await request("/payroll/" + payslipId + "/whatsapp", { method: "POST" });
+    if (!result || result.skipped) {
+        if (!options.quiet) {
+            alert((result && result.employeeName ? result.employeeName + ": " : "")
+                + ((result && result.reason) || "No WhatsApp number on the employee profile. Slip was not sent."));
+        }
+        return false;
+    }
+    window.open(result.whatsappUrl, "_blank", "noopener");
+    return true;
+}
+
+function bindWhatsAppLinks() {
+    document.querySelectorAll("[data-whatsapp]").forEach((link) => {
+        link.addEventListener("click", async (event) => {
+            event.preventDefault();
+            try {
+                await sendPayslipWhatsApp(link.getAttribute("data-whatsapp"));
+            } catch (error) {
+                alert(error.message);
+            }
+        });
+    });
+}
+
 function otPay(obj) {
     return obj && (obj.overtimeEligible === true || obj.overtimeEligible === "true");
 }
@@ -441,12 +475,13 @@ async function employeesView() {
             <td data-label="Hours / day">${escapeHtml(emp.hoursPerDay ?? "")}</td>
             <td data-label="Allowed leaves">${emp.allowedLeavesPerMonth}</td>
             <td data-label="Overtime">${otPay(emp) ? "Yes (hourly)" : "No (per day)"}</td>
+            <td data-label="WhatsApp">${escapeHtml(emp.whatsappNumber || "")}</td>
             <td data-label="Sheet ID">${escapeHtml(emp.attendanceCode || "")}</td>
             <td class="inline actions" data-label="Actions">
                 <a class="btn secondary" href="#/employees/edit/${emp.id}">Edit</a>
                 <button class="btn danger" data-deactivate="${emp.id}">Remove</button>
             </td>
-        </tr>`).join("") || `<tr><td class="empty" colspan="9">No employees yet.</td></tr>`;
+        </tr>`).join("") || `<tr><td class="empty" colspan="11">No employees yet.</td></tr>`;
     return `
         <div class="row">
             <h1>Employees</h1>
@@ -457,7 +492,7 @@ async function employeesView() {
             <thead>
                 <tr>
                     <th>Name</th><th>Position</th><th>Joined</th>
-                    <th>Salary / month</th><th>Hours / day</th><th>Allowed leaves</th><th>Overtime</th><th>Sheet ID</th><th></th>
+                    <th>Salary / month</th><th>Hours / day</th><th>Allowed leaves</th><th>Overtime</th><th>WhatsApp</th><th>Sheet ID</th><th></th>
                 </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -484,7 +519,7 @@ function bindEmployeeList() {
 
 async function employeeFormView(id) {
     const employee = id ? await request("/employees/" + id) : {
-        name: "", position: "", department: "", dateOfJoining: "", salaryPerMonth: "", hoursPerDay: 8, allowedLeavesPerMonth: 2, attendanceCode: "", overtimeEligible: false
+        name: "", position: "", department: "", dateOfJoining: "", salaryPerMonth: "", hoursPerDay: 8, allowedLeavesPerMonth: 2, attendanceCode: "", overtimeEligible: false, whatsappNumber: ""
     };
     return `
         <h1>${id ? "Edit employee" : "New employee"}</h1>
@@ -496,6 +531,7 @@ async function employeeFormView(id) {
             <label>Salary per month (INR) <input type="number" step="0.01" min="0" name="salaryPerMonth" required value="${escapeHtml(employee.salaryPerMonth ?? "")}"/></label>
             <label>Hours per day <input type="number" step="0.25" min="0.25" name="hoursPerDay" required value="${escapeHtml(employee.hoursPerDay ?? 8)}"/></label>
             <label>Allowed leaves per month <input type="number" min="0" name="allowedLeavesPerMonth" value="${escapeHtml(employee.allowedLeavesPerMonth ?? 0)}"/></label>
+            <label>WhatsApp number <input name="whatsappNumber" inputmode="tel" placeholder="e.g. 9876543210 or +91 9876543210" value="${escapeHtml(employee.whatsappNumber || "")}"/></label>
             <label class="check"><input type="checkbox" id="overtimeEligible" name="overtimeEligible" ${otPay(employee) ? "checked" : ""}/> Overtime allowed (pay by punched hours). Unchecked = daily rate, not hours.</label>
             <label>Attendance sheet ID <input name="attendanceCode" value="${escapeHtml(employee.attendanceCode || "")}" placeholder="Matches printed ID, e.g. 6"/></label>
             <div class="inline">
@@ -520,6 +556,7 @@ function bindEmployeeForm() {
             hoursPerDay: Number(data.hoursPerDay),
             allowedLeavesPerMonth: Number(data.allowedLeavesPerMonth || 0),
             attendanceCode: data.attendanceCode || "",
+            whatsappNumber: (data.whatsappNumber || "").trim(),
             overtimeEligible: !!(overtimeBox && overtimeBox.checked)
         };
         const id = form.dataset.id;
@@ -664,7 +701,12 @@ async function payrollView() {
     const month = hashMonth
         || (batches[0] && batches[0].periodStart ? String(batches[0].periodStart).slice(0, 7) : "")
         || new Date().toISOString().slice(0, 7);
-    const payslips = await request("/payroll?month=" + encodeURIComponent(month));
+    const [payslips, employees] = await Promise.all([
+        request("/payroll?month=" + encodeURIComponent(month)),
+        request("/employees")
+    ]);
+    const phones = Object.fromEntries((employees || []).map((emp) => [emp.id, emp.whatsappNumber]));
+    const withPhone = (payslips || []).filter((slip) => hasWhatsApp(phones[slip.employeeId])).length;
     const options = batches.map((batch) =>
         `<option value="${escapeHtml(batch.id)}">${escapeHtml(batch.originalFilename)} (${escapeHtml(batch.periodStart)} to ${escapeHtml(batch.periodEnd)})</option>`
     ).join("");
@@ -684,6 +726,9 @@ async function payrollView() {
             <td class="inline actions" data-label="Actions">
                 <a class="btn secondary" href="#/payroll/${escapeHtml(slip.id)}">Daily breakdown</a>
                 <a class="btn export-link" href="#" data-id="${escapeHtml(slip.id)}">Excel</a>
+                ${hasWhatsApp(phones[slip.employeeId])
+                    ? `<a class="btn" href="#" data-whatsapp="${escapeHtml(slip.id)}">WhatsApp</a>`
+                    : `<span class="muted">No WhatsApp</span>`}
             </td>
         </tr>`).join("") || `<tr><td class="empty" colspan="10">No payslips for ${escapeHtml(month)} yet. Choose that month and click Calculate.</td></tr>`;
     return `
@@ -703,6 +748,7 @@ async function payrollView() {
         <p class="lead">Showing payslips for <strong>${escapeHtml(month)}</strong>
             ${(payslips || []).length
                 ? ` · <a class="btn" href="#" id="month-export" data-month="${escapeHtml(month)}">Export month Excel</a>`
+                    + (withPhone ? ` · <a class="btn" href="#" id="month-whatsapp">WhatsApp slips (${withPhone})</a>` : " · <span class=\"muted\">No WhatsApp numbers to send</span>")
                 : ""}</p>
         <div class="table-wrap">
         <table class="stack">
@@ -719,6 +765,7 @@ async function payrollView() {
 
 function bindPayroll() {
     bindExportLinks();
+    const form = document.getElementById("payroll-form");
     const monthExport = document.getElementById("month-export");
     if (monthExport) {
         monthExport.addEventListener("click", async (event) => {
@@ -731,7 +778,30 @@ function bindPayroll() {
             }
         });
     }
-    const form = document.getElementById("payroll-form");
+    bindWhatsAppLinks();
+    const monthWhatsApp = document.getElementById("month-whatsapp");
+    if (monthWhatsApp) {
+        monthWhatsApp.addEventListener("click", async (event) => {
+            event.preventDefault();
+            const ids = [...document.querySelectorAll("[data-whatsapp]")].map((el) => el.getAttribute("data-whatsapp"));
+            let sent = 0;
+            let skipped = 0;
+            for (const id of ids) {
+                try {
+                    const ok = await sendPayslipWhatsApp(id, { quiet: true });
+                    if (ok) {
+                        sent++;
+                    } else {
+                        skipped++;
+                    }
+                } catch (error) {
+                    alert(error.message);
+                    return;
+                }
+            }
+            alert("WhatsApp opened for " + sent + " employee(s). Skipped " + skipped + " without a number.");
+        });
+    }
     form.month.addEventListener("change", () => {
         location.hash = "#/payroll?month=" + form.month.value;
     });
@@ -796,6 +866,13 @@ async function payslipDetailView(id) {
     const detail = await request("/payroll/" + id);
     const slip = detail.payslip;
     const month = slip.month;
+    let employee = null;
+    try {
+        employee = slip.employeeId ? await request("/employees/" + slip.employeeId) : null;
+    } catch (error) {
+        employee = null;
+    }
+    const canWhatsApp = hasWhatsApp(employee && employee.whatsappNumber);
     const rows = (detail.days || []).map((day) => {
         const incomplete = isIncompletePunch(day);
         const weekday = day.weekday || weekdayName(day.date);
@@ -841,7 +918,10 @@ async function payslipDetailView(id) {
     return `
         <p><a href="#/payroll?month=${encodeURIComponent(month)}">← Monthly salary</a>
             · <a class="btn export-link" href="#" data-id="${escapeHtml(id)}">Export Excel</a>
-            · <a class="btn" href="#" id="pdf-export" data-id="${escapeHtml(id)}" data-name="${escapeHtml(slip.employeeName || "employee")}" data-month="${escapeHtml(month)}">Salary slip PDF</a></p>
+            · <a class="btn" href="#" id="pdf-export" data-id="${escapeHtml(id)}" data-name="${escapeHtml(slip.employeeName || "employee")}" data-month="${escapeHtml(month)}">Salary slip PDF</a>
+            ${canWhatsApp
+                ? ` · <a class="btn" href="#" data-whatsapp="${escapeHtml(id)}">Send on WhatsApp</a>`
+                : ` · <span class="muted">No WhatsApp number — slip not sent</span>`}</p>
         <h1>${escapeHtml(slip.employeeName)}</h1>
         <p class="lead">${escapeHtml(slip.position || "")} · ${escapeHtml(month)} ·
             ${Number(slip.hoursPerDay || 0)} hours/day · ${money(slip.dailyRate)} / day · ${money(slip.hourlyRate)} / hour ·
@@ -871,6 +951,7 @@ async function payslipDetailView(id) {
 
 function bindPayslipDetail() {
     bindExportLinks();
+    bindWhatsAppLinks();
     const id = location.hash.replace("#/payroll/", "").split("?")[0];
     const pdf = document.getElementById("pdf-export");
     if (pdf) {

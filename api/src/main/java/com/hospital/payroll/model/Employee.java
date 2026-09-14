@@ -31,6 +31,8 @@ public class Employee {
     @com.fasterxml.jackson.annotation.JsonProperty("overtimeEligible")
     private boolean overtimeEligible;
 
+    private String whatsappNumber;
+
     private boolean active = true;
 
     public String getId() {
@@ -113,6 +115,14 @@ public class Employee {
     @com.fasterxml.jackson.annotation.JsonProperty("overtimeEligible")
     public void setOvertimeEligible(boolean overtimeEligible) {
         this.overtimeEligible = overtimeEligible;
+    }
+
+    public String getWhatsappNumber() {
+        return whatsappNumber;
+    }
+
+    public void setWhatsappNumber(String whatsappNumber) {
+        this.whatsappNumber = whatsappNumber;
     }
 
     public boolean isActive() {
