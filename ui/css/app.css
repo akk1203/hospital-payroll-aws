@@ -120,6 +120,35 @@ tr.row-multipunch td {
 }
 table { width: 100%; border-collapse: collapse; overflow: hidden; }
 th, td { text-align: left; padding: 0.7rem 0.8rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+.toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    align-items: end;
+    margin: 0.75rem 0;
+    padding: 0.75rem 1rem;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+}
+.toolbar label { min-width: 9rem; }
+.toolbar-grow { flex: 1 1 14rem; min-width: min(100%, 14rem); }
+.toolbar-count { margin: 0 0 0.35rem; white-space: nowrap; }
+.th-sort {
+    background: transparent;
+    color: inherit;
+    border: 0;
+    padding: 0;
+    min-height: 0;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+    display: inline;
+}
+.th-sort:hover { color: var(--accent); }
+.muted { color: var(--muted); }
 .btn, button, .link-btn {
     background: var(--accent);
     color: #fff;

@@ -36,15 +36,20 @@ public class AdvanceService {
         if (advance.getAmount() == null || advance.getAmount().signum() <= 0) {
             throw new IllegalArgumentException("Advance amount must be greater than zero");
         }
-        if (advance.getMonth() == null || advance.getMonth().isBlank()) {
-            throw new IllegalArgumentException("Payroll month is required");
+        if (advance.getGivenOn() == null) {
+            advance.setGivenOn(LocalDate.now());
         }
-        YearMonth.parse(advance.getMonth());
+        // Payroll month is always taken from the transaction date.
+        advance.setMonth(YearMonth.from(advance.getGivenOn()).toString());
         Employee employee = store.findEmployee(advance.getEmployeeId())
                 .orElseThrow(() -> new IllegalArgumentException("Employee not found"));
         advance.setEmployeeName(employee.getName());
-        if (advance.getGivenOn() == null) {
-            advance.setGivenOn(LocalDate.now());
+        if (advance.getId() != null && !advance.getId().isBlank()) {
+            store.findAdvance(advance.getId()).ifPresent(existing -> {
+                if (advance.getCreatedAt() == null) {
+                    advance.setCreatedAt(existing.getCreatedAt());
+                }
+            });
         }
         if (advance.getCreatedAt() == null) {
             advance.setCreatedAt(Instant.now());

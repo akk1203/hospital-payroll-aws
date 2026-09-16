@@ -736,39 +736,49 @@ async function advancesView() {
     const rows = (advances || []).map((row) => `
         <tr>
             <td data-label="Employee">${escapeHtml(row.employeeName || "")}</td>
-            <td data-label="Given on">${escapeHtml(row.givenOn || "")}</td>
+            <td data-label="Transaction date">${escapeHtml(row.givenOn || "")}</td>
+            <td data-label="Payroll month">${escapeHtml(row.month || "")}</td>
             <td data-label="Amount">${money(row.amount)}</td>
             <td data-label="Note">${escapeHtml(row.note || "")}</td>
-            <td data-label="Actions">
+            <td class="inline actions" data-label="Actions">
+                <button type="button" class="btn secondary" data-edit-advance="${escapeHtml(row.id)}"
+                    data-employee-id="${escapeHtml(row.employeeId || "")}"
+                    data-given-on="${escapeHtml(row.givenOn || "")}"
+                    data-amount="${escapeHtml(row.amount ?? "")}"
+                    data-note="${escapeHtml(row.note || "")}">Edit</button>
                 <button type="button" class="btn secondary" data-delete-advance="${escapeHtml(row.id)}">Delete</button>
             </td>
-        </tr>`).join("") || `<tr><td class="empty" colspan="5">No advances for ${escapeHtml(month)}.</td></tr>`;
+        </tr>`).join("") || `<tr><td class="empty" colspan="6">No advances for ${escapeHtml(month)}.</td></tr>`;
     const total = (advances || []).reduce((sum, row) => sum + Number(row.amount || 0), 0);
     return `
         <h1>Salary advances</h1>
-        <p>Record money given in advance for a payroll month. When you calculate salary for that month, the advance is deducted from net pay.</p>
+        <p>Enter the transaction date when the advance was given. The payroll month is taken from that date automatically, and the amount is deducted from net pay when you calculate that month.</p>
         <form class="form" id="advance-filter">
-            <label>Month <input type="month" name="month" value="${escapeHtml(month)}" required/></label>
+            <label>Show month <input type="month" name="month" value="${escapeHtml(month)}" required/></label>
             <button class="btn secondary" type="submit">Show</button>
         </form>
         <form class="form" id="advance-form">
-            <h2>Add advance</h2>
+            <h2 id="advance-form-title">Add advance</h2>
+            <input type="hidden" name="advanceId" value=""/>
             <label>Employee
                 <select name="employeeId" required>
                     <option value="">Select employee</option>
                     ${options}
                 </select>
             </label>
-            <label>Payroll month <input type="month" name="month" value="${escapeHtml(month)}" required/></label>
-            <label>Given on <input type="date" name="givenOn" value="${escapeHtml(new Date().toISOString().slice(0, 10))}"/></label>
+            <label>Transaction date <input type="date" name="givenOn" value="${escapeHtml(new Date().toISOString().slice(0, 10))}" required/></label>
+            <p class="muted" id="advance-month-hint">Payroll month: <strong>${escapeHtml(month)}</strong></p>
             <label>Amount (INR) <input type="number" min="1" step="0.01" name="amount" required/></label>
             <label>Note <input type="text" name="note" placeholder="Optional"/></label>
-            <button class="btn" type="submit">Save advance</button>
+            <div class="inline actions">
+                <button class="btn" type="submit" id="advance-save-btn">Save advance</button>
+                <button class="btn secondary" type="button" id="advance-cancel-btn" hidden>Cancel edit</button>
+            </div>
         </form>
         <p class="lead">Advances for <strong>${escapeHtml(month)}</strong> · Total ${money(total)}</p>
         <div class="table-wrap">
         <table class="stack">
-            <thead><tr><th>Employee</th><th>Given on</th><th>Amount</th><th>Note</th><th></th></tr></thead>
+            <thead><tr><th>Employee</th><th>Transaction date</th><th>Payroll month</th><th>Amount</th><th>Note</th><th></th></tr></thead>
             <tbody>${rows}</tbody>
         </table>
         </div>`;
@@ -784,28 +794,105 @@ function bindAdvances() {
         });
     }
     const form = document.getElementById("advance-form");
+    const title = document.getElementById("advance-form-title");
+    const saveBtn = document.getElementById("advance-save-btn");
+    const cancelBtn = document.getElementById("advance-cancel-btn");
+    const hint = document.getElementById("advance-month-hint");
+    const givenOn = form && form.givenOn;
+    const updateHint = () => {
+        if (!hint || !givenOn || !givenOn.value) {
+            return;
+        }
+        hint.innerHTML = "Payroll month: <strong>" + escapeHtml(String(givenOn.value).slice(0, 7)) + "</strong>";
+    };
+    const resetForm = () => {
+        if (!form) {
+            return;
+        }
+        form.advanceId.value = "";
+        form.employeeId.value = "";
+        form.givenOn.value = new Date().toISOString().slice(0, 10);
+        form.amount.value = "";
+        form.note.value = "";
+        if (title) {
+            title.textContent = "Add advance";
+        }
+        if (saveBtn) {
+            saveBtn.textContent = "Save advance";
+        }
+        if (cancelBtn) {
+            cancelBtn.hidden = true;
+        }
+        updateHint();
+    };
+    if (givenOn) {
+        givenOn.addEventListener("change", updateHint);
+        updateHint();
+    }
+    if (cancelBtn) {
+        cancelBtn.addEventListener("click", resetForm);
+    }
     if (form) {
         form.addEventListener("submit", async (event) => {
             event.preventDefault();
             const data = Object.fromEntries(new FormData(form).entries());
+            const month = String(data.givenOn || "").slice(0, 7);
+            if (!month) {
+                alert("Transaction date is required.");
+                return;
+            }
+            const body = {
+                employeeId: data.employeeId,
+                givenOn: data.givenOn,
+                amount: Number(data.amount),
+                note: data.note || ""
+            };
             try {
-                await request("/advances", {
-                    method: "POST",
-                    body: JSON.stringify({
-                        employeeId: data.employeeId,
-                        month: data.month,
-                        givenOn: data.givenOn || null,
-                        amount: Number(data.amount),
-                        note: data.note || ""
-                    })
-                });
-                location.hash = "#/advances?month=" + encodeURIComponent(data.month);
-                render();
+                if (data.advanceId) {
+                    await request("/advances/" + data.advanceId, {
+                        method: "PUT",
+                        body: JSON.stringify(body)
+                    });
+                } else {
+                    await request("/advances", {
+                        method: "POST",
+                        body: JSON.stringify(body)
+                    });
+                }
+                const next = "#/advances?month=" + encodeURIComponent(month);
+                if (location.hash === next) {
+                    render();
+                } else {
+                    location.hash = next;
+                }
             } catch (error) {
                 alert(error.message);
             }
         });
     }
+    document.querySelectorAll("[data-edit-advance]").forEach((button) => {
+        button.addEventListener("click", () => {
+            if (!form) {
+                return;
+            }
+            form.advanceId.value = button.getAttribute("data-edit-advance") || "";
+            form.employeeId.value = button.getAttribute("data-employee-id") || "";
+            form.givenOn.value = button.getAttribute("data-given-on") || "";
+            form.amount.value = button.getAttribute("data-amount") || "";
+            form.note.value = button.getAttribute("data-note") || "";
+            if (title) {
+                title.textContent = "Edit advance";
+            }
+            if (saveBtn) {
+                saveBtn.textContent = "Update advance";
+            }
+            if (cancelBtn) {
+                cancelBtn.hidden = false;
+            }
+            updateHint();
+            form.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+    });
     document.querySelectorAll("[data-delete-advance]").forEach((button) => {
         button.addEventListener("click", async () => {
             if (!confirm("Delete this advance?")) {
@@ -843,8 +930,22 @@ async function payrollView() {
         const checked = monthBatches.some((item) => item.id === batch.id) ? "checked" : "";
         return `<label class="check batch-pick"><input type="checkbox" name="batchId" value="${escapeHtml(batch.id)}" ${checked}/> ${escapeHtml(batch.originalFilename)} (${escapeHtml(batch.periodStart)} → ${escapeHtml(batch.periodEnd)})</label>`;
     }).join("") || `<p class="muted">Upload an attendance file first.</p>`;
-    const rows = (payslips || []).map((slip) => `
-        <tr>
+    const rows = (payslips || []).map((slip) => {
+        const payType = otPay(slip) ? "hourly" : "perday";
+        const payable = otPay(slip)
+            ? Number(slip.payableHours || 0)
+            : Number(slip.payableDays || slip.presentDays || 0);
+        return `
+        <tr class="payroll-row"
+            data-name="${escapeHtml((slip.employeeName || "").toLowerCase())}"
+            data-position="${escapeHtml((slip.position || "").toLowerCase())}"
+            data-paytype="${payType}"
+            data-present="${Number(slip.presentDays || 0)}"
+            data-payable="${payable}"
+            data-gross="${Number(slip.monthlySalary || 0)}"
+            data-advance="${Number(slip.advanceDeduction || 0)}"
+            data-shortfall="${Number(slip.leaveWithoutPayDeduction || 0)}"
+            data-net="${Number(slip.netPay || 0)}">
             <td data-label="Employee">${escapeHtml(slip.employeeName)}</td>
             <td data-label="Position">${escapeHtml(slip.position || "")}</td>
             <td data-label="Present">${slip.presentDays}</td>
@@ -864,7 +965,8 @@ async function payrollView() {
                     ? `<a class="btn" href="#" data-whatsapp="${escapeHtml(slip.id)}">WhatsApp</a>`
                     : `<span class="muted">No WhatsApp</span>`}
             </td>
-        </tr>`).join("") || `<tr><td class="empty" colspan="11">No payslips for ${escapeHtml(month)} yet. Choose that month and click Calculate.</td></tr>`;
+        </tr>`;
+    }).join("") || `<tr class="payroll-empty"><td class="empty" colspan="11">No payslips for ${escapeHtml(month)} yet. Choose that month and click Calculate.</td></tr>`;
     return `
         <h1>Monthly salary</h1>
         <p>If overtime is not allowed, daily rate = monthly salary ÷ days in that month (28/29/30/31). A present day credits the scheduled hours/day (for example 8 hours); otherwise credited hours are 0. Short days still count as a full day and are highlighted. If overtime is allowed, credited hours are rounded to 15 minutes (the first 30 minutes after the scheduled day stay at the schedule; 45 minutes credits 30 extra minutes; 50 minutes and above round to 15 minutes). Scheduled hours = (days in the month − allowed leave) × hours/day and those hours are paid as the monthly salary. Overtime is extra credited hours in the month above that schedule, paid at monthly salary ÷ 30 ÷ hours/day. Missing in or out is counted as a full day and highlighted. If absent days are fewer than 15, leave allowance is 0 for that month (instead of the employee’s configured leaves). Advances recorded for the month are deducted from net pay.</p>
@@ -882,12 +984,47 @@ async function payrollView() {
                 ? ` · <a class="btn" href="#" id="month-export" data-month="${escapeHtml(month)}">Export month Excel</a>`
                     + (withPhone ? ` · <a class="btn" href="#" id="month-whatsapp">WhatsApp slips (${withPhone})</a>` : " · <span class=\"muted\">No WhatsApp numbers to send</span>")
                 : ""}</p>
+        ${(payslips || []).length ? `
+        <div class="toolbar" id="payroll-toolbar">
+            <label class="toolbar-grow">Search
+                <input type="search" id="payroll-search" placeholder="Name or position" autocomplete="off"/>
+            </label>
+            <label>Pay type
+                <select id="payroll-paytype">
+                    <option value="">All</option>
+                    <option value="perday">Per day</option>
+                    <option value="hourly">Hourly</option>
+                </select>
+            </label>
+            <label>Sort by
+                <select id="payroll-sort">
+                    <option value="name-asc">Name A–Z</option>
+                    <option value="name-desc">Name Z–A</option>
+                    <option value="present-desc">Present high → low</option>
+                    <option value="present-asc">Present low → high</option>
+                    <option value="net-desc">Net pay high → low</option>
+                    <option value="net-asc">Net pay low → high</option>
+                    <option value="gross-desc">Gross high → low</option>
+                    <option value="advance-desc">Advance high → low</option>
+                    <option value="shortfall-desc">Shortfall high → low</option>
+                </select>
+            </label>
+            <p class="muted toolbar-count" id="payroll-count">${(payslips || []).length} shown</p>
+        </div>` : ""}
         <div class="table-wrap">
-        <table class="stack">
+        <table class="stack" id="payroll-table">
             <thead>
                 <tr>
-                    <th>Employee</th><th>Position</th><th>Present</th><th>Pay type</th>
-                    <th>Payable</th><th>Rate</th><th>Gross</th><th>Advance</th><th>Shortfall</th><th>Net pay</th><th></th>
+                    <th><button type="button" class="th-sort" data-sort="name">Employee</button></th>
+                    <th>Position</th>
+                    <th><button type="button" class="th-sort" data-sort="present">Present</button></th>
+                    <th>Pay type</th>
+                    <th>Payable</th><th>Rate</th>
+                    <th><button type="button" class="th-sort" data-sort="gross">Gross</button></th>
+                    <th><button type="button" class="th-sort" data-sort="advance">Advance</button></th>
+                    <th><button type="button" class="th-sort" data-sort="shortfall">Shortfall</button></th>
+                    <th><button type="button" class="th-sort" data-sort="net">Net pay</button></th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -897,6 +1034,7 @@ async function payrollView() {
 
 function bindPayroll() {
     bindExportLinks();
+    bindPayrollTableControls();
     const form = document.getElementById("payroll-form");
     const monthExport = document.getElementById("month-export");
     if (monthExport) {
@@ -915,7 +1053,7 @@ function bindPayroll() {
     if (monthWhatsApp) {
         monthWhatsApp.addEventListener("click", async (event) => {
             event.preventDefault();
-            const ids = [...document.querySelectorAll("[data-whatsapp]")].map((el) => el.getAttribute("data-whatsapp"));
+            const ids = [...document.querySelectorAll(".payroll-row:not([hidden]) [data-whatsapp]")].map((el) => el.getAttribute("data-whatsapp"));
             let sent = 0;
             let skipped = 0;
             for (const id of ids) {
@@ -960,6 +1098,83 @@ function bindPayroll() {
             alert(error.message);
         }
     });
+}
+
+function bindPayrollTableControls() {
+    const table = document.getElementById("payroll-table");
+    const search = document.getElementById("payroll-search");
+    const payType = document.getElementById("payroll-paytype");
+    const sort = document.getElementById("payroll-sort");
+    const count = document.getElementById("payroll-count");
+    if (!table) {
+        return;
+    }
+    const tbody = table.querySelector("tbody");
+    let sortKey = "name-asc";
+
+    const apply = () => {
+        const q = (search && search.value || "").trim().toLowerCase();
+        const type = payType && payType.value || "";
+        const rows = [...tbody.querySelectorAll("tr.payroll-row")];
+        let visible = 0;
+        rows.forEach((row) => {
+            const name = row.getAttribute("data-name") || "";
+            const position = row.getAttribute("data-position") || "";
+            const rowType = row.getAttribute("data-paytype") || "";
+            const matchesText = !q || name.includes(q) || position.includes(q);
+            const matchesType = !type || rowType === type;
+            const show = matchesText && matchesType;
+            row.hidden = !show;
+            if (show) {
+                visible++;
+            }
+        });
+        sortKey = (sort && sort.value) || sortKey;
+        const [field, dir] = sortKey.split("-");
+        const shown = rows.filter((row) => !row.hidden);
+        shown.sort((a, b) => {
+            if (field === "name") {
+                const left = a.getAttribute("data-name") || "";
+                const right = b.getAttribute("data-name") || "";
+                return dir === "desc" ? right.localeCompare(left) : left.localeCompare(right);
+            }
+            const left = Number(a.getAttribute("data-" + field) || 0);
+            const right = Number(b.getAttribute("data-" + field) || 0);
+            return dir === "desc" ? right - left : left - right;
+        });
+        shown.forEach((row) => tbody.appendChild(row));
+        if (count) {
+            count.textContent = visible + " shown";
+        }
+    };
+
+    if (search) {
+        search.addEventListener("input", apply);
+    }
+    if (payType) {
+        payType.addEventListener("change", apply);
+    }
+    if (sort) {
+        sort.addEventListener("change", apply);
+    }
+    table.querySelectorAll(".th-sort").forEach((button) => {
+        button.addEventListener("click", () => {
+            const field = button.getAttribute("data-sort");
+            const current = (sort && sort.value) || sortKey;
+            const [curField, curDir] = current.split("-");
+            const next = field + "-" + (curField === field && curDir === "asc" ? "desc" : "asc");
+            if (sort) {
+                const option = [...sort.options].find((opt) => opt.value === next)
+                    || [...sort.options].find((opt) => opt.value.startsWith(field + "-"));
+                if (option) {
+                    sort.value = option.value;
+                }
+            }
+            sortKey = sort ? sort.value : next;
+            apply();
+        });
+    });
+    apply();
 }
 
 function toTimeInput(value) {
