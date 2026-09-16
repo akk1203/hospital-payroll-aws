@@ -186,6 +186,16 @@ function money(value) {
     return "₹ " + amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/** Decimal hours → H:MM (e.g. 8.5 → 8:30). */
+function hoursMm(value) {
+    const hours = Number(value || 0);
+    const sign = hours < 0 ? "-" : "";
+    const totalMinutes = Math.round(Math.abs(hours) * 60);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    return sign + h + ":" + String(m).padStart(2, "0");
+}
+
 function flash(message, kind) {
     return `<div class="flash ${kind}">${escapeHtml(message)}</div>`;
 }
@@ -339,6 +349,9 @@ async function render() {
         } else if (hash === "#/attendance") {
             app.innerHTML = await attendanceView();
             bindUpload();
+        } else if (hash.startsWith("#/advances")) {
+            app.innerHTML = await advancesView();
+            bindAdvances();
         } else if (hash.startsWith("#/payroll/")) {
             app.innerHTML = await payslipDetailView(hash.replace("#/payroll/", "").split("?")[0]);
             bindPayslipDetail();
@@ -453,6 +466,7 @@ async function homeView() {
         <div class="cards">
             <a class="card" href="#/employees"><h2>Employees</h2><p>${employees.length} on file</p></a>
             <a class="card" href="#/attendance"><h2>Attendance</h2><p>Upload CSV or Excel and map sheet names.</p></a>
+            <a class="card" href="#/advances"><h2>Advances</h2><p>Record salary advances and deduct from net pay.</p></a>
             <a class="card" href="#/payroll"><h2>Payroll</h2><p>Paid leave, LWP deduction, net pay.</p></a>
         </div>
         <h2>Recent uploads</h2>
@@ -472,7 +486,7 @@ async function employeesView() {
             <td data-label="Position">${escapeHtml(emp.position || "")}</td>
             <td data-label="Joined">${escapeHtml(emp.dateOfJoining || "")}</td>
             <td data-label="Salary / month">${money(emp.salaryPerMonth)}</td>
-            <td data-label="Hours / day">${escapeHtml(emp.hoursPerDay ?? "")}</td>
+            <td data-label="Hours / day">${escapeHtml(hoursMm(emp.hoursPerDay))}</td>
             <td data-label="Allowed leaves">${emp.allowedLeavesPerMonth}</td>
             <td data-label="Overtime">${otPay(emp) ? "Yes (hourly)" : "No (per day)"}</td>
             <td data-label="WhatsApp">${escapeHtml(emp.whatsappNumber || "")}</td>
@@ -585,14 +599,16 @@ async function attendanceView() {
         </tr>`).join("") || `<tr><td class="empty" colspan="5">No uploads yet.</td></tr>`;
     return `
         <h1>Attendance import</h1>
-        <p>Upload the printed <em>Attendance Record Report</em> Excel (ID column, calendar-day columns, in time on the first row and out time on the second row). CSV with <code>time_in</code>/<code>time_out</code> still works.</p>
+        <p>Upload the biometric <em>Att.log report</em> Excel (or printed Attendance Record Report / CSV). The uploader reads the Att.log sheet, keeps only the main month in the file, and creates employees with default pay settings when they are new. You can upload more than one file for the same month and select them all when calculating salary.</p>
         <p>
             <a href="#" id="dl-printed">Download Dr Dharmik &amp; Moinbhai Excel</a>
             ·
             <a href="#" id="dl-sample">Download sample CSV</a>
         </p>
         <form class="form" id="upload-form">
-            <label>Attendance file <input type="file" name="file" accept=".csv,.xlsx,.xls" required/></label>
+            <label>Attendance files (one or more for the same month)
+                <input type="file" name="file" accept=".csv,.xlsx,.xls" multiple required/>
+            </label>
             <button class="btn" type="submit">Upload and map</button>
         </form>
         <h2>Uploaded files</h2>
@@ -615,18 +631,30 @@ function bindUpload() {
     });
     document.getElementById("upload-form").addEventListener("submit", async (event) => {
         event.preventDefault();
-        const file = event.target.file.files[0];
-        const buffer = await file.arrayBuffer();
-        const bytes = new Uint8Array(buffer);
-        let binary = "";
-        bytes.forEach((b) => { binary += String.fromCharCode(b); });
-        const contentBase64 = btoa(binary);
+        const files = Array.from(event.target.file.files || []);
+        if (!files.length) {
+            alert("Choose at least one attendance file.");
+            return;
+        }
+        let lastBatch = null;
         try {
-            const batch = await request("/attendance/upload", {
-                method: "POST",
-                body: JSON.stringify({ filename: file.name, contentBase64 })
-            });
-            location.hash = "#/attendance/" + batch.id;
+            for (const file of files) {
+                const buffer = await file.arrayBuffer();
+                const bytes = new Uint8Array(buffer);
+                let binary = "";
+                bytes.forEach((b) => { binary += String.fromCharCode(b); });
+                const contentBase64 = btoa(binary);
+                lastBatch = await request("/attendance/upload", {
+                    method: "POST",
+                    body: JSON.stringify({ filename: file.name, contentBase64 })
+                });
+            }
+            if (files.length === 1 && lastBatch) {
+                location.hash = "#/attendance/" + lastBatch.id;
+            } else {
+                alert("Uploaded " + files.length + " attendance files. Select all of them on Monthly salary when you calculate.");
+                location.hash = "#/attendance";
+            }
         } catch (error) {
             alert(error.message);
         }
@@ -695,6 +723,104 @@ function bindMappingForms() {
     });
 }
 
+async function advancesView() {
+    const hashMonth = new URLSearchParams(location.hash.split("?")[1] || "").get("month");
+    const month = hashMonth || new Date().toISOString().slice(0, 7);
+    const [advances, employees] = await Promise.all([
+        request("/advances?month=" + encodeURIComponent(month)),
+        request("/employees")
+    ]);
+    const options = (employees || []).map((emp) =>
+        `<option value="${escapeHtml(emp.id)}">${escapeHtml(emp.name)}</option>`
+    ).join("");
+    const rows = (advances || []).map((row) => `
+        <tr>
+            <td data-label="Employee">${escapeHtml(row.employeeName || "")}</td>
+            <td data-label="Given on">${escapeHtml(row.givenOn || "")}</td>
+            <td data-label="Amount">${money(row.amount)}</td>
+            <td data-label="Note">${escapeHtml(row.note || "")}</td>
+            <td data-label="Actions">
+                <button type="button" class="btn secondary" data-delete-advance="${escapeHtml(row.id)}">Delete</button>
+            </td>
+        </tr>`).join("") || `<tr><td class="empty" colspan="5">No advances for ${escapeHtml(month)}.</td></tr>`;
+    const total = (advances || []).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    return `
+        <h1>Salary advances</h1>
+        <p>Record money given in advance for a payroll month. When you calculate salary for that month, the advance is deducted from net pay.</p>
+        <form class="form" id="advance-filter">
+            <label>Month <input type="month" name="month" value="${escapeHtml(month)}" required/></label>
+            <button class="btn secondary" type="submit">Show</button>
+        </form>
+        <form class="form" id="advance-form">
+            <h2>Add advance</h2>
+            <label>Employee
+                <select name="employeeId" required>
+                    <option value="">Select employee</option>
+                    ${options}
+                </select>
+            </label>
+            <label>Payroll month <input type="month" name="month" value="${escapeHtml(month)}" required/></label>
+            <label>Given on <input type="date" name="givenOn" value="${escapeHtml(new Date().toISOString().slice(0, 10))}"/></label>
+            <label>Amount (INR) <input type="number" min="1" step="0.01" name="amount" required/></label>
+            <label>Note <input type="text" name="note" placeholder="Optional"/></label>
+            <button class="btn" type="submit">Save advance</button>
+        </form>
+        <p class="lead">Advances for <strong>${escapeHtml(month)}</strong> · Total ${money(total)}</p>
+        <div class="table-wrap">
+        <table class="stack">
+            <thead><tr><th>Employee</th><th>Given on</th><th>Amount</th><th>Note</th><th></th></tr></thead>
+            <tbody>${rows}</tbody>
+        </table>
+        </div>`;
+}
+
+function bindAdvances() {
+    const filter = document.getElementById("advance-filter");
+    if (filter) {
+        filter.addEventListener("submit", (event) => {
+            event.preventDefault();
+            const month = new FormData(filter).get("month");
+            location.hash = "#/advances?month=" + encodeURIComponent(month);
+        });
+    }
+    const form = document.getElementById("advance-form");
+    if (form) {
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const data = Object.fromEntries(new FormData(form).entries());
+            try {
+                await request("/advances", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        employeeId: data.employeeId,
+                        month: data.month,
+                        givenOn: data.givenOn || null,
+                        amount: Number(data.amount),
+                        note: data.note || ""
+                    })
+                });
+                location.hash = "#/advances?month=" + encodeURIComponent(data.month);
+                render();
+            } catch (error) {
+                alert(error.message);
+            }
+        });
+    }
+    document.querySelectorAll("[data-delete-advance]").forEach((button) => {
+        button.addEventListener("click", async () => {
+            if (!confirm("Delete this advance?")) {
+                return;
+            }
+            try {
+                await request("/advances/" + button.getAttribute("data-delete-advance"), { method: "DELETE" });
+                render();
+            } catch (error) {
+                alert(error.message);
+            }
+        });
+    });
+}
+
 async function payrollView() {
     const batches = await request("/attendance");
     const hashMonth = new URLSearchParams(location.hash.split("?")[1] || "").get("month");
@@ -707,9 +833,16 @@ async function payrollView() {
     ]);
     const phones = Object.fromEntries((employees || []).map((emp) => [emp.id, emp.whatsappNumber]));
     const withPhone = (payslips || []).filter((slip) => hasWhatsApp(phones[slip.employeeId])).length;
-    const options = batches.map((batch) =>
-        `<option value="${escapeHtml(batch.id)}">${escapeHtml(batch.originalFilename)} (${escapeHtml(batch.periodStart)} to ${escapeHtml(batch.periodEnd)})</option>`
-    ).join("");
+    const monthBatches = (batches || []).filter((batch) => {
+        const start = String(batch.periodStart || "");
+        const end = String(batch.periodEnd || "");
+        return start.startsWith(month) || end.startsWith(month)
+            || (start && end && start.slice(0, 7) <= month && end.slice(0, 7) >= month);
+    });
+    const batchChecks = (monthBatches.length ? monthBatches : batches).map((batch) => {
+        const checked = monthBatches.some((item) => item.id === batch.id) ? "checked" : "";
+        return `<label class="check batch-pick"><input type="checkbox" name="batchId" value="${escapeHtml(batch.id)}" ${checked}/> ${escapeHtml(batch.originalFilename)} (${escapeHtml(batch.periodStart)} → ${escapeHtml(batch.periodEnd)})</label>`;
+    }).join("") || `<p class="muted">Upload an attendance file first.</p>`;
     const rows = (payslips || []).map((slip) => `
         <tr>
             <td data-label="Employee">${escapeHtml(slip.employeeName)}</td>
@@ -717,10 +850,11 @@ async function payrollView() {
             <td data-label="Present">${slip.presentDays}</td>
             <td data-label="Pay type">${otPay(slip) ? "Hourly" : "Per day"}</td>
             <td data-label="${otPay(slip) ? "Payable hours" : "Payable days"}">${otPay(slip)
-                ? Number(slip.payableHours || 0).toFixed(2) + "h"
+                ? hoursMm(slip.payableHours)
                 : Number(slip.payableDays || slip.presentDays || 0).toFixed(2) + " days"}</td>
             <td data-label="${otPay(slip) ? "Rate / hour" : "Rate / day"}">${money(otPay(slip) ? slip.hourlyRate : slip.dailyRate)}</td>
             <td data-label="Gross">${money(slip.monthlySalary)}</td>
+            <td data-label="Advance">${money(slip.advanceDeduction)}</td>
             <td data-label="Shortfall">${money(slip.leaveWithoutPayDeduction)}</td>
             <td data-label="Net pay">${money(slip.netPay)}</td>
             <td class="inline actions" data-label="Actions">
@@ -730,18 +864,16 @@ async function payrollView() {
                     ? `<a class="btn" href="#" data-whatsapp="${escapeHtml(slip.id)}">WhatsApp</a>`
                     : `<span class="muted">No WhatsApp</span>`}
             </td>
-        </tr>`).join("") || `<tr><td class="empty" colspan="10">No payslips for ${escapeHtml(month)} yet. Choose that month and click Calculate.</td></tr>`;
+        </tr>`).join("") || `<tr><td class="empty" colspan="11">No payslips for ${escapeHtml(month)} yet. Choose that month and click Calculate.</td></tr>`;
     return `
         <h1>Monthly salary</h1>
-        <p>If overtime is not allowed, daily rate = monthly salary ÷ days in that month (28/29/30/31). A present day credits the scheduled hours/day (for example 8 hours); otherwise credited hours are 0. Short days still count as a full day and are highlighted. If overtime is allowed, credited hours are rounded to 15 minutes (the first 30 minutes after the scheduled day stay at the schedule; 45 minutes credits 30 extra minutes; 50 minutes and above round to 15 minutes). Scheduled hours = (days in the month − allowed leave) × hours/day and those hours are paid as the monthly salary. Overtime is extra credited hours in the month above that schedule, paid at monthly salary ÷ 30 ÷ hours/day. Missing in or out is counted as a full day and highlighted.</p>
-        <p>Days you change on the daily breakdown are kept if you upload the same month again and recalculate. The file will not overwrite those hours.</p>
+        <p>If overtime is not allowed, daily rate = monthly salary ÷ days in that month (28/29/30/31). A present day credits the scheduled hours/day (for example 8 hours); otherwise credited hours are 0. Short days still count as a full day and are highlighted. If overtime is allowed, credited hours are rounded to 15 minutes (the first 30 minutes after the scheduled day stay at the schedule; 45 minutes credits 30 extra minutes; 50 minutes and above round to 15 minutes). Scheduled hours = (days in the month − allowed leave) × hours/day and those hours are paid as the monthly salary. Overtime is extra credited hours in the month above that schedule, paid at monthly salary ÷ 30 ÷ hours/day. Missing in or out is counted as a full day and highlighted. If absent days are fewer than 15, leave allowance is 0 for that month (instead of the employee’s configured leaves). Advances recorded for the month are deducted from net pay.</p>
+        <p>Days you change on the daily breakdown are kept if you upload the same month again and recalculate. The file will not overwrite those hours. Tick every attendance file that belongs to this payroll month — salary uses all selected files together.</p>
         <form class="form" id="payroll-form">
-            <label>Attendance file
-                <select name="batchId" required>
-                    <option value="">Select upload</option>
-                    ${options}
-                </select>
-            </label>
+            <fieldset class="batch-picks">
+                <legend>Attendance files for this month</legend>
+                ${batchChecks}
+            </fieldset>
             <label>Payroll month <input type="month" name="month" value="${escapeHtml(month)}" required/></label>
             <button class="btn" type="submit">Calculate</button>
         </form>
@@ -755,7 +887,7 @@ async function payrollView() {
             <thead>
                 <tr>
                     <th>Employee</th><th>Position</th><th>Present</th><th>Pay type</th>
-                    <th>Payable</th><th>Rate</th><th>Gross</th><th>Shortfall</th><th>Net pay</th><th></th>
+                    <th>Payable</th><th>Rate</th><th>Gross</th><th>Advance</th><th>Shortfall</th><th>Net pay</th><th></th>
                 </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -809,10 +941,13 @@ function bindPayroll() {
         event.preventDefault();
         const data = new FormData(form);
         const month = data.get("month");
-        const params = new URLSearchParams({
-            batchId: data.get("batchId"),
-            month
-        });
+        const batchIds = data.getAll("batchId").filter(Boolean);
+        if (!batchIds.length) {
+            alert("Select at least one attendance file for this month.");
+            return;
+        }
+        const params = new URLSearchParams({ month });
+        batchIds.forEach((id) => params.append("batchId", id));
         try {
             await request("/payroll/calculate?" + params.toString(), { method: "POST" });
             const next = "#/payroll?month=" + month;
@@ -876,27 +1011,41 @@ async function payslipDetailView(id) {
     const rows = (detail.days || []).map((day) => {
         const incomplete = isIncompletePunch(day);
         const weekday = day.weekday || weekdayName(day.date);
+        const multipunch = day.multiplePunches || ((day.punches || []).length > 2);
         const classes = [
             day.adjusted ? "row-adjusted" : "",
             incomplete ? "row-incomplete" : "",
             day.status === "ABSENT" ? "row-absent" : "",
             day.shortHours ? "row-short" : "",
+            multipunch ? "row-multipunch" : "",
             weekday === "Sunday" ? "row-sunday" : ""
         ].filter(Boolean).join(" ");
         const tags = [
             day.adjusted ? `<span class="tag tag-adjusted">Corrected</span>` : "",
             incomplete ? `<span class="tag tag-incomplete">Missing in/out · full day</span>` : "",
             day.status === "ABSENT" ? `<span class="tag tag-absent">Absent</span>` : "",
-            day.shortHours ? `<span class="tag tag-short">Short hours</span>` : ""
+            day.shortHours ? `<span class="tag tag-short">Short hours</span>` : "",
+            multipunch ? `<span class="tag tag-multipunch">Multiple punches</span>` : ""
         ].join("");
+        const punchOptions = (day.punches || []).map((punch) => escapeHtml(punch));
+        const inControl = multipunch && punchOptions.length
+            ? `<select name="timeIn" aria-label="Time in">${punchOptions.map((punch) =>
+                `<option value="${punch}" ${toTimeInput(day.timeIn) === punch || day.timeIn === punch ? "selected" : ""}>${punch}</option>`
+            ).join("")}</select>`
+            : `<input type="time" name="timeIn" value="${toTimeInput(day.timeIn)}" title="In" aria-label="Time in"/>`;
+        const outControl = multipunch && punchOptions.length
+            ? `<select name="timeOut" aria-label="Time out">${punchOptions.map((punch) =>
+                `<option value="${punch}" ${toTimeInput(day.timeOut) === punch || day.timeOut === punch ? "selected" : ""}>${punch}</option>`
+            ).join("")}</select>`
+            : `<input type="time" name="timeOut" value="${toTimeInput(day.timeOut)}" title="Out" aria-label="Time out"/>`;
         return `
         <tr class="${classes}">
             <td data-label="Date">${escapeHtml(day.date)}${tags}</td>
             <td data-label="Day"><span class="${weekday === "Sunday" ? "sunday-name" : ""}">${escapeHtml(weekday)}</span></td>
             <td data-label="Adjust">
                 <form class="inline day-form" data-date="${escapeHtml(day.date)}">
-                    <input type="time" name="timeIn" value="${toTimeInput(day.timeIn)}" title="In" aria-label="Time in"/>
-                    <input type="time" name="timeOut" value="${toTimeInput(day.timeOut)}" title="Out" aria-label="Time out"/>
+                    ${inControl}
+                    ${outControl}
                     <select name="status" aria-label="Status">
                         <option value="PRESENT" ${day.status === "PRESENT" ? "selected" : ""}>Present</option>
                         <option value="LEAVE" ${day.status === "LEAVE" ? "selected" : ""}>Leave</option>
@@ -909,9 +1058,10 @@ async function payslipDetailView(id) {
                     </select>
                     <button type="submit">Save</button>
                 </form>
+                ${multipunch ? `<div class="muted punch-list">Punches: ${(day.punches || []).map((p) => escapeHtml(p)).join(", ")}</div>` : ""}
             </td>
-            <td data-label="Punched">${Number(day.punchedHours || 0).toFixed(2)}h</td>
-            <td data-label="Credited">${Number(day.creditedHours || 0).toFixed(2)}h</td>
+            <td data-label="Punched">${hoursMm(day.punchedHours)}</td>
+            <td data-label="Credited">${hoursMm(day.creditedHours)}</td>
             <td data-label="Pay">${money(day.pay)}</td>
         </tr>`;
     }).join("");
@@ -924,18 +1074,20 @@ async function payslipDetailView(id) {
                 : ` · <span class="muted">No WhatsApp number — slip not sent</span>`}</p>
         <h1>${escapeHtml(slip.employeeName)}</h1>
         <p class="lead">${escapeHtml(slip.position || "")} · ${escapeHtml(month)} ·
-            ${Number(slip.hoursPerDay || 0)} hours/day · ${money(slip.dailyRate)} / day · ${money(slip.hourlyRate)} / hour ·
+            ${hoursMm(slip.hoursPerDay)} / day · ${money(slip.dailyRate)} / day · ${money(slip.hourlyRate)} / hour ·
             ${otPay(slip) ? "Overtime allowed (monthly salary for scheduled hours + OT hourly on extra month hours)" : "No overtime (daily rate = salary ÷ days in month)"} ·
-            OT ${Number(slip.overtimeHours || 0).toFixed(2)}h ${money(slip.overtimePay)} ·
+            OT ${hoursMm(slip.overtimeHours)} ${money(slip.overtimePay)} ·
+            Advance ${money(slip.advanceDeduction)} ·
             Net pay ${money(slip.netPay)}</p>
-        <p>Change in/out times, or mark a day as <strong>full day</strong> (${escapeHtml(slip.hoursPerDay)}h) or
-            <strong>half day</strong> (${(Number(slip.hoursPerDay || 0) / 2).toFixed(2)}h). Salary is recalculated when you save.
+        <p>Change in/out times, or mark a day as <strong>full day</strong> (${hoursMm(slip.hoursPerDay)}) or
+            <strong>half day</strong> (${hoursMm((Number(slip.hoursPerDay || 0) / 2))}). For days with more than two punches, choose which punch is in and which is out. Salary is recalculated when you save.
             These changes stay if you re-upload attendance and calculate this month again.</p>
         <p class="legend">
             <span><i class="swatch adjusted"></i> Corrected in the UI</span>
             <span><i class="swatch incomplete"></i> Missing in/out (counted as full day)</span>
             <span><i class="swatch absent"></i> Absent</span>
             <span><i class="swatch short"></i> Worked less than regular hours</span>
+            <span><i class="swatch multipunch"></i> Multiple punches</span>
         </p>
         <div class="table-wrap">
         <table class="stack">

@@ -15,6 +15,7 @@ public class AttendanceDay {
     private DayStatus status = DayStatus.ABSENT;
     private DayCredit credit = DayCredit.WORKED;
     private String notes;
+    private boolean multiplePunches;
     private String sourceEmployeeName;
     private String sourceEmployeeCode;
     private String mappedEmployeeId;
@@ -82,6 +83,14 @@ public class AttendanceDay {
 
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+
+    public boolean isMultiplePunches() {
+        return multiplePunches;
+    }
+
+    public void setMultiplePunches(boolean multiplePunches) {
+        this.multiplePunches = multiplePunches;
     }
 
     public String getSourceEmployeeName() {

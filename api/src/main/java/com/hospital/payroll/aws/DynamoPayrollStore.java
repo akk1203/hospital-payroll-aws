@@ -2,6 +2,7 @@ package com.hospital.payroll.aws;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hospital.payroll.model.Advance;
 import com.hospital.payroll.model.AttendanceBatch;
 import com.hospital.payroll.model.AttendancePerson;
 import com.hospital.payroll.model.Employee;
@@ -50,6 +51,8 @@ public class DynamoPayrollStore {
     String adjustmentsTable;
     @ConfigProperty(name = "payroll.aws.mappings-table")
     String mappingsTable;
+    @ConfigProperty(name = "payroll.aws.advances-table")
+    String advancesTable;
     @ConfigProperty(name = "payroll.aws.data-bucket")
     String dataBucket;
 
@@ -224,6 +227,61 @@ public class DynamoPayrollStore {
                 "employeeId", s(saved.getEmployeeId()),
                 "date", s(saved.getDate().toString())
         ), saved);
+    }
+
+    public List<Advance> listAdvances() {
+        return scanJson(advancesTable, Advance.class).stream()
+                .sorted(Comparator
+                        .comparing((Advance a) -> a.getMonth() == null ? "" : a.getMonth())
+                        .reversed()
+                        .thenComparing(a -> a.getGivenOn() == null ? LocalDate.MIN : a.getGivenOn(), Comparator.reverseOrder()))
+                .toList();
+    }
+
+    public List<Advance> listAdvancesByMonth(String month) {
+        var response = dynamoDb.query(QueryRequest.builder()
+                .tableName(advancesTable)
+                .indexName("MonthIndex")
+                .keyConditionExpression("#m = :m")
+                .expressionAttributeNames(Map.of("#m", "month"))
+                .expressionAttributeValues(Map.of(":m", s(month)))
+                .build());
+        List<Advance> items = new ArrayList<>();
+        for (var item : response.items()) {
+            fromItem(item, Advance.class).ifPresent(items::add);
+        }
+        items.sort(Comparator.comparing((Advance a) -> a.getEmployeeName() == null ? "" : a.getEmployeeName(),
+                String.CASE_INSENSITIVE_ORDER));
+        return items;
+    }
+
+    public List<Advance> listAdvancesByEmployeeAndMonth(String employeeId, String month) {
+        return listAdvancesByMonth(month).stream()
+                .filter(a -> employeeId != null && employeeId.equals(a.getEmployeeId()))
+                .toList();
+    }
+
+    public Optional<Advance> findAdvance(String id) {
+        return getJson(advancesTable, Map.of("id", s(id)), Advance.class);
+    }
+
+    public Advance saveAdvance(Advance advance) {
+        if (advance.getId() == null || advance.getId().isBlank()) {
+            advance.setId(UUID.randomUUID().toString());
+        }
+        putJson(advancesTable, Map.of(
+                "id", s(advance.getId()),
+                "month", s(advance.getMonth()),
+                "employeeId", s(nullToEmpty(advance.getEmployeeId()))
+        ), advance);
+        return advance;
+    }
+
+    public void deleteAdvance(String id) {
+        dynamoDb.deleteItem(DeleteItemRequest.builder()
+                .tableName(advancesTable)
+                .key(Map.of("id", s(id)))
+                .build());
     }
 
     public Map<String, Long> deleteDemoData() {

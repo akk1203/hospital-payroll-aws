@@ -87,7 +87,22 @@ nav .nav-reset:hover { color: #fff; background: rgba(155, 27, 48, 0.55); }
 h1 { font-size: clamp(1.25rem, 4vw, 1.8rem); margin: 0.4rem 0 0.8rem; }
 h2 { font-size: 1.1rem; }
 .lead { color: var(--muted); max-width: 46rem; }
-.muted { color: var(--muted); }
+.batch-picks {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    margin: 0 0 1rem;
+    background: var(--card);
+}
+.batch-picks legend { font-weight: 600; padding: 0 0.25rem; }
+.batch-pick { display: flex; gap: 0.5rem; align-items: flex-start; margin: 0.35rem 0; }
+.punch-list { margin-top: 0.35rem; font-size: 0.85rem; }
+.tag-multipunch { background: #ede9fe; color: #5b21b6; }
+.swatch.multipunch { background: #ddd6fe; border: 1px solid #7c3aed; }
+tr.row-multipunch,
+tr.row-multipunch td {
+    background-color: #ede9fe;
+}
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 1rem; }
 .card, table, .form, .panel {
     background: var(--card);
@@ -277,6 +292,10 @@ tr.row-short,
 tr.row-short td {
     background-color: #fed7aa;
 }
+tr.row-multipunch,
+tr.row-multipunch td {
+    background-color: #ede9fe;
+}
 tr.row-adjusted.row-incomplete,
 tr.row-adjusted.row-incomplete td {
     background-color: #fde68a;
@@ -300,6 +319,10 @@ tr.row-adjusted.row-incomplete td {
         background: #fed7aa;
         border-color: #c2410c;
     }
+    table.stack tr.row-multipunch {
+        background: #ede9fe;
+        border-color: #7c3aed;
+    }
     table.stack tr.row-adjusted.row-incomplete {
         background: #fde68a;
         border-color: #0f766e;
@@ -308,7 +331,8 @@ tr.row-adjusted.row-incomplete td {
     table.stack tr.row-adjusted td,
     table.stack tr.row-incomplete td,
     table.stack tr.row-absent td,
-    table.stack tr.row-short td {
+    table.stack tr.row-short td,
+    table.stack tr.row-multipunch td {
         background: transparent;
     }
 }

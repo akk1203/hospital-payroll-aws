@@ -23,23 +23,30 @@ public final class WorkedHoursCalculator {
     public static void apply(AttendanceDay day) {
         List<String> punches = day.getPunches() == null ? List.of() : day.getPunches();
         if (!punches.isEmpty()) {
-            day.setTimeIn(punches.get(0));
-            if (punches.size() >= 2) {
+            if (day.getTimeIn() == null || day.getTimeIn().isBlank()) {
+                day.setTimeIn(punches.get(0));
+            }
+            if (punches.size() >= 2 && (day.getTimeOut() == null || day.getTimeOut().isBlank())) {
                 day.setTimeOut(punches.get(punches.size() - 1));
             }
         }
-        day.setWorkedHours(hoursFrom(punches));
+        day.setMultiplePunches(punches.size() > 2);
+        day.setWorkedHours(hoursBetween(day.getTimeIn(), day.getTimeOut()));
+    }
+
+    /** Hours between selected in/out (first→last by default). */
+    public static BigDecimal hoursBetween(String timeIn, String timeOut) {
+        if (timeIn == null || timeIn.isBlank() || timeOut == null || timeOut.isBlank()) {
+            return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+        }
+        return durationHours(timeIn, timeOut).setScale(2, RoundingMode.HALF_UP);
     }
 
     public static BigDecimal hoursFrom(List<String> punches) {
         if (punches == null || punches.size() < 2) {
             return BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
         }
-        BigDecimal total = BigDecimal.ZERO;
-        for (int i = 0; i + 1 < punches.size(); i += 2) {
-            total = total.add(durationHours(punches.get(i), punches.get(i + 1)));
-        }
-        return total.setScale(2, RoundingMode.HALF_UP);
+        return hoursBetween(punches.get(0), punches.get(punches.size() - 1));
     }
 
     public static List<String> combinePunches(String timeIn, String timeOut, String extraPunches) {
@@ -48,6 +55,10 @@ public final class WorkedHoursCalculator {
         addTimes(punches, timeOut);
         addTimes(punches, extraPunches);
         return punches;
+    }
+
+    public static String normalizeTime(String text) {
+        return parseTime(text).format(HH_MM);
     }
 
     private static void addTimes(List<String> punches, String text) {
@@ -60,7 +71,7 @@ public final class WorkedHoursCalculator {
                 continue;
             }
             try {
-                punches.add(parseTime(trimmed).format(HH_MM));
+                punches.add(normalizeTime(trimmed));
             } catch (DateTimeParseException ignored) {
                 // skip non-time tokens
             }

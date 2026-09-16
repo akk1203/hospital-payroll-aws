@@ -80,7 +80,7 @@ public final class PayslipPdfExporter {
             valueCell(attendance, String.valueOf(displayLeaveDays(slip)));
             valueCell(attendance, String.valueOf(displayAbsentDays(slip)));
             if (showOvertimeHours) {
-                valueCell(attendance, text(slip.getOvertimeHours()));
+                valueCell(attendance, HoursFormat.hm(slip.getOvertimeHours()));
             }
             document.add(attendance);
 
@@ -92,9 +92,12 @@ public final class PayslipPdfExporter {
                     ? "Scheduled hours (monthly salary)"
                     : "Gross monthly salary", inr(slip.getMonthlySalary()));
             if (slip.getOvertimeEligible() && hasAmount(slip.getOvertimeHours())) {
-                addPayRow(pay, valueFont, "Overtime (" + text(slip.getOvertimeHours()) + " h)", inr(slip.getOvertimePay()));
+                addPayRow(pay, valueFont, "Overtime (" + HoursFormat.hmSuffix(slip.getOvertimeHours()) + ")", inr(slip.getOvertimePay()));
             }
             addPayRow(pay, valueFont, "Shortfall / unpaid days", inr(slip.getLeaveWithoutPayDeduction()));
+            if (hasAmount(slip.getAdvanceDeduction())) {
+                addPayRow(pay, valueFont, "Advance deduction", inr(slip.getAdvanceDeduction()));
+            }
             PdfPCell netLabel = new PdfPCell(new Phrase("Net pay", moneyFont));
             netLabel.setPadding(8);
             netLabel.setBackgroundColor(new Color(204, 251, 241));

@@ -19,6 +19,8 @@ public class DayBreakdown {
     private boolean adjusted;
     private boolean incompletePunch;
     private boolean shortHours;
+    private boolean multiplePunches;
+    private java.util.List<String> punches = new java.util.ArrayList<>();
 
     public LocalDate getDate() {
         return date;
@@ -114,5 +116,21 @@ public class DayBreakdown {
 
     public void setShortHours(boolean shortHours) {
         this.shortHours = shortHours;
+    }
+
+    public boolean isMultiplePunches() {
+        return multiplePunches;
+    }
+
+    public void setMultiplePunches(boolean multiplePunches) {
+        this.multiplePunches = multiplePunches;
+    }
+
+    public java.util.List<String> getPunches() {
+        return punches;
+    }
+
+    public void setPunches(java.util.List<String> punches) {
+        this.punches = punches == null ? new java.util.ArrayList<>() : punches;
     }
 }

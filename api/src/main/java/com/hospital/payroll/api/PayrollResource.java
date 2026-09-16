@@ -26,8 +26,8 @@ public class PayrollResource {
 
     @POST
     @Path("/calculate")
-    public List<Payslip> calculate(@QueryParam("batchId") String batchId, @QueryParam("month") String month) {
-        return payrollService.calculate(batchId, YearMonth.parse(month));
+    public List<Payslip> calculate(@QueryParam("batchId") List<String> batchIds, @QueryParam("month") String month) {
+        return payrollService.calculate(batchIds, YearMonth.parse(month));
     }
 
     @GET

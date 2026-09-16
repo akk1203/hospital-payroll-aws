@@ -31,6 +31,7 @@ public class Payslip {
     private BigDecimal hourlyRate;
     private BigDecimal dailyRate;
     private BigDecimal leaveWithoutPayDeduction;
+    private BigDecimal advanceDeduction;
     private BigDecimal netPay;
     private BigDecimal overtimePay;
     @com.fasterxml.jackson.annotation.JsonProperty("overtimeEligible")
@@ -222,6 +223,14 @@ public class Payslip {
 
     public void setLeaveWithoutPayDeduction(BigDecimal leaveWithoutPayDeduction) {
         this.leaveWithoutPayDeduction = leaveWithoutPayDeduction;
+    }
+
+    public BigDecimal getAdvanceDeduction() {
+        return advanceDeduction;
+    }
+
+    public void setAdvanceDeduction(BigDecimal advanceDeduction) {
+        this.advanceDeduction = advanceDeduction;
     }
 
     public BigDecimal getNetPay() {

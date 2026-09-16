@@ -140,6 +140,28 @@ Resources:
         - AttributeName: sourceNameNormalized
           KeyType: HASH
 
+  AdvancesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: month
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: MonthIndex
+          KeySchema:
+            - AttributeName: month
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
   DataBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -270,6 +292,7 @@ Resources:
           PAYSLIPS_TABLE: !Ref PayslipsTable
           ADJUSTMENTS_TABLE: !Ref AdjustmentsTable
           MAPPINGS_TABLE: !Ref MappingsTable
+          ADVANCES_TABLE: !Ref AdvancesTable
           DATA_BUCKET: !Ref DataBucket
           COGNITO_CLIENT_ID: !Ref ApiUserPoolClient
           COGNITO_CLIENT_SECRET: !GetAtt ApiUserPoolClient.ClientSecret
@@ -292,6 +315,8 @@ Resources:
             TableName: !Ref AdjustmentsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref MappingsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AdvancesTable
         - S3CrudPolicy:
             BucketName: !Ref DataBucket
         - Statement:
@@ -311,6 +336,7 @@ Resources:
                 - dynamodb:Scan
               Resource:
                 - !Sub ${PayslipsTable.Arn}/index/*
+                - !Sub ${AdvancesTable.Arn}/index/*
       Events:
         ProxyGet:
           Type: HttpApi
@@ -411,6 +437,7 @@ Resources:
           PAYSLIPS_TABLE: !Ref PayslipsTable
           ADJUSTMENTS_TABLE: !Ref AdjustmentsTable
           MAPPINGS_TABLE: !Ref MappingsTable
+          ADVANCES_TABLE: !Ref AdvancesTable
           DATA_BUCKET: !Ref DataBucket
           COGNITO_CLIENT_ID: !Ref ApiUserPoolClient
           COGNITO_CLIENT_SECRET: !GetAtt ApiUserPoolClient.ClientSecret
@@ -433,6 +460,8 @@ Resources:
             TableName: !Ref AdjustmentsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref MappingsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref AdvancesTable
         - S3CrudPolicy:
             BucketName: !Ref DataBucket
         - Statement:
@@ -442,6 +471,7 @@ Resources:
                 - dynamodb:Scan
               Resource:
                 - !Sub ${PayslipsTable.Arn}/index/*
+                - !Sub ${AdvancesTable.Arn}/index/*
       Events:
         Upload:
           Type: HttpApi

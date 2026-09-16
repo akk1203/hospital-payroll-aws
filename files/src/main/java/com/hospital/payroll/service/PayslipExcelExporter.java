@@ -94,21 +94,24 @@ public final class PayslipExcelExporter {
             info(sheet, r++, label, "Employee", slip.getEmployeeName());
             info(sheet, r++, label, "Position", slip.getPosition());
             info(sheet, r++, label, "Month", slip.getMonth());
-            info(sheet, r++, label, "Hours / day", text(slip.getHoursPerDay()));
+            info(sheet, r++, label, "Hours / day", HoursFormat.hm(slip.getHoursPerDay()));
             info(sheet, r++, label, "Allowed leaves", String.valueOf(slip.getAllowedLeaves()));
-            info(sheet, r++, label, "Scheduled hours ((days in month − allowed leave) × hours/day)", text(slip.getExpectedHours()));
+            info(sheet, r++, label, "Scheduled hours ((days in month − allowed leave) × hours/day)", HoursFormat.hm(slip.getExpectedHours()));
             info(sheet, r++, label, "Pay type", slip.getOvertimeEligible() ? "Hourly (overtime allowed)" : "Per day");
             if (slip.getOvertimeEligible() && slip.getOvertimeHours() != null && slip.getOvertimeHours().signum() > 0) {
-                info(sheet, r++, label, "Overtime hours", text(slip.getOvertimeHours()));
+                info(sheet, r++, label, "Overtime hours", HoursFormat.hm(slip.getOvertimeHours()));
                 info(sheet, r++, label, "Overtime pay", text(slip.getOvertimePay()));
             }
             info(sheet, r++, label, "Present days", String.valueOf(slip.getPresentDays()));
             info(sheet, r++, label, "Leave days", String.valueOf(PayslipPdfExporter.displayLeaveDays(slip)));
             info(sheet, r++, label, "Absent days", String.valueOf(PayslipPdfExporter.displayAbsentDays(slip)));
-            info(sheet, r++, label, "Hours worked", text(slip.getWorkedHours()));
-            info(sheet, r++, label, "Payable hours", text(slip.getPayableHours()));
+            info(sheet, r++, label, "Hours worked", HoursFormat.hm(slip.getWorkedHours()));
+            info(sheet, r++, label, "Payable hours", HoursFormat.hm(slip.getPayableHours()));
             info(sheet, r++, label, "Gross monthly salary", text(slip.getMonthlySalary()));
             info(sheet, r++, label, "Shortfall", text(slip.getLeaveWithoutPayDeduction()));
+            if (slip.getAdvanceDeduction() != null && slip.getAdvanceDeduction().signum() > 0) {
+                info(sheet, r++, label, "Advance deduction", text(slip.getAdvanceDeduction()));
+            }
             info(sheet, r++, label, "Net pay", text(slip.getNetPay()));
             r++;
 
@@ -142,8 +145,8 @@ public final class PayslipExcelExporter {
                 cell(row, 3, nullToEmpty(day.getTimeOut()), textStyle);
                 cell(row, 4, day.getStatus() == null ? "" : labelOf(day.getStatus().name()), textStyle);
                 cell(row, 5, day.getCredit() == null ? "" : labelOf(day.getCredit().name()), textStyle);
-                numeric(row, 6, day.getPunchedHours(), hourStyle);
-                numeric(row, 7, day.getCreditedHours(), hourStyle);
+                cell(row, 6, HoursFormat.hm(day.getPunchedHours()), hourStyle);
+                cell(row, 7, HoursFormat.hm(day.getCreditedHours()), hourStyle);
                 numeric(row, 8, day.getPay(), moneyStyle);
                 cell(row, 9, note, textStyle);
             }

@@ -40,7 +40,8 @@ import java.util.regex.Pattern;
 public class AttendanceFileParser {
 
     private static final Pattern DATE_RANGE = Pattern.compile("(\\d{4}-\\d{2}-\\d{2})\\s*[~\\-]\\s*(\\d{4}-\\d{2}-\\d{2})");
-    private static final Pattern TIME = Pattern.compile("\\b([01]?\\d|2[0-3]):[0-5]\\d\\b");
+    /** Finds HH:mm even when punches are concatenated, e.g. 10:3420:02 → 10:34, 20:02. */
+    private static final Pattern TIME = Pattern.compile("([01]?\\d|2[0-3]):[0-5]\\d");
     private static final DateTimeFormatter ISO = DateTimeFormatter.ISO_LOCAL_DATE;
     private static final DateTimeFormatter INDIAN = DateTimeFormatter.ofPattern("dd-MM-yyyy");
     private static final DateTimeFormatter INDIAN_SLASH = DateTimeFormatter.ofPattern("dd/MM/yyyy");
@@ -132,14 +133,201 @@ public class AttendanceFileParser {
     }
 
     private ParsedAttendance parseExcelWorkbook(Workbook opened) {
-        Sheet sheet = opened.getSheetAt(0);
+        Sheet sheet = findAttendanceSheet(opened);
         DataFormatter formatter = new DataFormatter();
         Row header = sheet.getRow(0);
         String headerText = header == null ? "" : rowText(header, formatter).toLowerCase(Locale.ROOT);
         if (headerText.contains("employee_name") || headerText.contains("time_in") || headerText.contains("in_time")) {
-            return parseLongExcel(sheet, formatter);
+            return filterToDominantMonth(parseLongExcel(sheet, formatter));
         }
-        return parseWideReport(sheet, formatter);
+        if (isAttLogLayout(sheet, formatter)) {
+            return filterToDominantMonth(parseAttLogReport(sheet, formatter));
+        }
+        return filterToDominantMonth(parseWideReport(sheet, formatter));
+    }
+
+    private Sheet findAttendanceSheet(Workbook opened) {
+        for (int i = 0; i < opened.getNumberOfSheets(); i++) {
+            Sheet sheet = opened.getSheetAt(i);
+            String name = sheet.getSheetName() == null ? "" : sheet.getSheetName().toLowerCase(Locale.ROOT);
+            if (name.contains("att.log") || name.contains("attn log") || name.contains("att log")
+                    || name.contains("attendance record")) {
+                return sheet;
+            }
+        }
+        for (int i = 0; i < opened.getNumberOfSheets(); i++) {
+            Sheet sheet = opened.getSheetAt(i);
+            String top = rowText(sheet.getRow(0), new DataFormatter()).toLowerCase(Locale.ROOT);
+            if (top.contains("attendance record report") || top.contains("att. time")) {
+                return sheet;
+            }
+        }
+        return opened.getSheetAt(0);
+    }
+
+    private boolean isAttLogLayout(Sheet sheet, DataFormatter formatter) {
+        for (int r = 0; r <= Math.min(12, sheet.getLastRowNum()); r++) {
+            Row row = sheet.getRow(r);
+            if (row == null) {
+                continue;
+            }
+            String text = rowText(row, formatter).toLowerCase(Locale.ROOT);
+            if (text.contains("id:") && text.contains("name:")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private ParsedAttendance parseAttLogReport(Sheet sheet, DataFormatter formatter) {
+        LocalDate periodStart = null;
+        LocalDate periodEnd = null;
+        for (int r = 0; r <= Math.min(8, sheet.getLastRowNum()); r++) {
+            Matcher matcher = DATE_RANGE.matcher(rowText(sheet.getRow(r), formatter));
+            if (matcher.find()) {
+                periodStart = LocalDate.parse(matcher.group(1));
+                periodEnd = LocalDate.parse(matcher.group(2));
+                break;
+            }
+        }
+        if (periodStart == null) {
+            throw new IllegalArgumentException("Could not find Att. Time range like 2026-08-14 ~ 2026-09-02 in the Excel file.");
+        }
+
+        int headerRowIndex = -1;
+        List<Integer> dateColumns = new ArrayList<>();
+        List<LocalDate> dates = new ArrayList<>();
+        for (int r = 0; r <= Math.min(12, sheet.getLastRowNum()); r++) {
+            Row row = sheet.getRow(r);
+            if (row == null) {
+                continue;
+            }
+            List<Integer> nums = new ArrayList<>();
+            for (Cell cell : row) {
+                String text = formatter.formatCellValue(cell).trim();
+                if (text.matches("\\d{1,2}")) {
+                    nums.add(cell.getColumnIndex());
+                }
+            }
+            if (nums.size() >= 8) {
+                headerRowIndex = r;
+                dateColumns = nums;
+                dates = expandDates(periodStart, periodEnd, row, dateColumns, formatter);
+                break;
+            }
+        }
+        if (headerRowIndex < 0) {
+            throw new IllegalArgumentException("Could not find a header row of calendar day numbers on the Att.log report sheet.");
+        }
+
+        Map<String, AttendancePerson> people = new LinkedHashMap<>();
+        for (int r = headerRowIndex + 1; r <= sheet.getLastRowNum(); r++) {
+            Row identity = sheet.getRow(r);
+            if (identity == null) {
+                continue;
+            }
+            String employeeId = findEmployeeIdAnywhere(identity, formatter);
+            if (employeeId == null) {
+                continue;
+            }
+            String name = extractName(identity, null, dateColumns, formatter);
+            if (name == null || name.isBlank()) {
+                name = "ID " + employeeId;
+            }
+            final String employeeName = name;
+            Row punchesRow = sheet.getRow(r + 1);
+            if (punchesRow != null && findEmployeeIdAnywhere(punchesRow, formatter) != null) {
+                punchesRow = null;
+            } else if (punchesRow != null) {
+                r++;
+            }
+            AttendancePerson person = people.computeIfAbsent(personKey(employeeId, employeeName), key -> newPerson(employeeId, employeeName));
+            for (int i = 0; i < dateColumns.size(); i++) {
+                int col = dateColumns.get(i);
+                LocalDate date = dates.get(i);
+                String cellText = punchesRow == null ? "" : cell(punchesRow, col, formatter);
+                AttendanceDay day = new AttendanceDay();
+                day.setDate(date);
+                day.setSourceEmployeeCode(employeeId);
+                day.setSourceEmployeeName(employeeName);
+                List<String> punches = extractPunches(cellText);
+                day.setPunches(punches);
+                day.setMultiplePunches(punches.size() > 2);
+                day.setNotes(extractNotes(cellText));
+                day.setStatus(resolveStatus(cellText, punches, day.getNotes()));
+                WorkedHoursCalculator.apply(day);
+                person.getDays().add(day);
+            }
+        }
+        return toResult(people, periodStart, periodEnd);
+    }
+
+    private String findEmployeeIdAnywhere(Row row, DataFormatter formatter) {
+        if (row == null) {
+            return null;
+        }
+        for (Cell cell : row) {
+            String text = formatter.formatCellValue(cell).trim();
+            Matcher labelled = Pattern.compile("(?i)ID\\s*:\\s*(\\d+)").matcher(text);
+            if (labelled.find()) {
+                return labelled.group(1);
+            }
+        }
+        for (int c = 0; c < row.getLastCellNum(); c++) {
+            String text = cell(row, c, formatter);
+            if (text.equalsIgnoreCase("ID") || text.equalsIgnoreCase("ID:")) {
+                for (int n = c + 1; n <= Math.min(c + 3, row.getLastCellNum()); n++) {
+                    String value = cell(row, n, formatter);
+                    if (value.matches("\\d+")) {
+                        return value;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Files often span month-end into the next month. Keep only the month that has the most days.
+     */
+    private ParsedAttendance filterToDominantMonth(ParsedAttendance parsed) {
+        Map<java.time.YearMonth, Integer> counts = new LinkedHashMap<>();
+        for (AttendancePerson person : parsed.people()) {
+            for (AttendanceDay day : person.getDays()) {
+                if (day.getDate() == null) {
+                    continue;
+                }
+                java.time.YearMonth month = java.time.YearMonth.from(day.getDate());
+                counts.merge(month, 1, Integer::sum);
+            }
+        }
+        if (counts.isEmpty()) {
+            return parsed;
+        }
+        java.time.YearMonth dominant = counts.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(java.time.YearMonth.from(parsed.periodStart()));
+        LocalDate start = null;
+        LocalDate end = null;
+        for (AttendancePerson person : parsed.people()) {
+            List<AttendanceDay> kept = new ArrayList<>();
+            for (AttendanceDay day : person.getDays()) {
+                if (day.getDate() != null && java.time.YearMonth.from(day.getDate()).equals(dominant)) {
+                    kept.add(day);
+                    start = min(start, day.getDate());
+                    end = max(end, day.getDate());
+                }
+            }
+            person.setDays(kept);
+        }
+        List<AttendancePerson> people = parsed.people().stream()
+                .filter(person -> person.getDays() != null && !person.getDays().isEmpty())
+                .toList();
+        if (people.isEmpty() || start == null || end == null) {
+            throw new IllegalArgumentException("No attendance rows were found for " + dominant + " in the file.");
+        }
+        return new ParsedAttendance(start, end, new ArrayList<>(people));
     }
 
     private boolean looksLikeXmlSpreadsheet(byte[] data) {
@@ -249,6 +437,7 @@ public class AttendanceFileParser {
                 punches = extractPunches(punchesValue);
             }
             day.setPunches(punches);
+            day.setMultiplePunches(punches.size() > 2);
             day.setNotes(notes);
             day.setStatus(resolveStatus(statusValue, punches, notes));
             WorkedHoursCalculator.apply(day);
@@ -326,6 +515,7 @@ public class AttendanceFileParser {
                 day.setSourceEmployeeCode(employeeId);
                 day.setSourceEmployeeName(name);
                 day.setPunches(extractPunches(combined));
+                day.setMultiplePunches(day.getPunches().size() > 2);
                 day.setNotes(extractNotes(combined));
                 day.setStatus(resolveStatus(combined, day.getPunches(), day.getNotes()));
                 WorkedHoursCalculator.apply(day);
@@ -364,10 +554,14 @@ public class AttendanceFileParser {
             return fromLabel;
         }
         int afterDates = dateColumns.get(dateColumns.size() - 1) + 1;
-        for (Row row : List.of(first, second)) {
-            if (row == null) {
-                continue;
-            }
+        List<Row> rows = new ArrayList<>();
+        if (first != null) {
+            rows.add(first);
+        }
+        if (second != null) {
+            rows.add(second);
+        }
+        for (Row row : rows) {
             short last = row.getLastCellNum();
             for (int c = afterDates; c < last; c++) {
                 String text = cell(row, c, formatter);
@@ -409,14 +603,21 @@ public class AttendanceFileParser {
         }
         for (Cell cell : row) {
             String text = formatter.formatCellValue(cell).trim();
-            if (text.toLowerCase(Locale.ROOT).startsWith("name")) {
-                String value = text.replaceFirst("(?i)name\\s*:?\\s*", "").trim();
-                if (!value.isBlank() && !isIgnorableNameCell(value)) {
-                    return value;
+            if (!text.toLowerCase(Locale.ROOT).startsWith("name")) {
+                continue;
+            }
+            String value = text.replaceFirst("(?i)name\\s*:?\\s*", "").trim();
+            if (!value.isBlank() && !isIgnorableNameCell(value)) {
+                return value;
+            }
+            // Att.log often leaves a blank column between "Name:" and the value.
+            int start = cell.getColumnIndex() + 1;
+            int end = Math.min(start + 4, row.getLastCellNum());
+            for (int c = start; c < end; c++) {
+                String nextValue = cell(row, c, formatter);
+                if (!isIgnorableNameCell(nextValue)) {
+                    return nextValue;
                 }
-                Cell next = row.getCell(cell.getColumnIndex() + 1);
-                String nextValue = formatter.formatCellValue(next).trim();
-                return isIgnorableNameCell(nextValue) ? "" : nextValue;
             }
         }
         return "";
@@ -444,7 +645,18 @@ public class AttendanceFileParser {
         }
         Matcher matcher = TIME.matcher(text);
         while (matcher.find()) {
-            punches.add(matcher.group());
+            String raw = matcher.group();
+            String normalized;
+            try {
+                normalized = WorkedHoursCalculator.normalizeTime(raw);
+            } catch (Exception ignored) {
+                normalized = raw;
+            }
+            // Biometric cells often repeat the same stamp (e.g. 21:5321:53); keep one consecutive copy.
+            if (!punches.isEmpty() && punches.get(punches.size() - 1).equals(normalized)) {
+                continue;
+            }
+            punches.add(normalized);
         }
         return punches;
     }

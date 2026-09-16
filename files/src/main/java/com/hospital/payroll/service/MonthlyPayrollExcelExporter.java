@@ -76,7 +76,7 @@ public final class MonthlyPayrollExcelExporter {
             String[] headers = {
                     "Employee", "Position", "Pay type", "Present", "Leave", "Absent",
                     "Payable days", "Payable hours", "Daily rate", "Hourly rate",
-                    "Gross salary", "Unused leave OT days", "Overtime pay", "Shortfall", "Net pay"
+                    "Gross salary", "Unused leave OT days", "Overtime pay", "Shortfall", "Advance", "Net pay"
             };
             Row headerRow = sheet.createRow(r++);
             for (int i = 0; i < headers.length; i++) {
@@ -93,14 +93,15 @@ public final class MonthlyPayrollExcelExporter {
                 numeric(row, 4, BigDecimal.valueOf(slip.getLeaveDays()), hours);
                 numeric(row, 5, BigDecimal.valueOf(slip.getAbsentDays()), hours);
                 numeric(row, 6, slip.getPayableDays(), hours);
-                numeric(row, 7, slip.getPayableHours(), hours);
+                cell(row, 7, HoursFormat.hm(slip.getPayableHours()), box);
                 numeric(row, 8, slip.getDailyRate(), money);
                 numeric(row, 9, slip.getHourlyRate(), money);
                 numeric(row, 10, slip.getMonthlySalary(), money);
                 numeric(row, 11, BigDecimal.valueOf(slip.getUnusedLeaveDays()), hours);
                 numeric(row, 12, slip.getOvertimePay(), money);
                 numeric(row, 13, slip.getLeaveWithoutPayDeduction(), money);
-                numeric(row, 14, slip.getNetPay(), money);
+                numeric(row, 14, slip.getAdvanceDeduction(), money);
+                numeric(row, 15, slip.getNetPay(), money);
                 if (slip.getNetPay() != null) {
                     netTotal = netTotal.add(slip.getNetPay());
                 }
@@ -108,10 +109,10 @@ public final class MonthlyPayrollExcelExporter {
 
             Row totalRow = sheet.createRow(r);
             cell(totalRow, 0, "Total", header);
-            for (int i = 1; i < 14; i++) {
+            for (int i = 1; i < 15; i++) {
                 cell(totalRow, i, "", header);
             }
-            numeric(totalRow, 14, netTotal, total);
+            numeric(totalRow, 15, netTotal, total);
 
             for (int i = 0; i < headers.length; i++) {
                 sheet.autoSizeColumn(i);

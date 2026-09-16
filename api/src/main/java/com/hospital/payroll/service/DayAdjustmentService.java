@@ -94,17 +94,24 @@ public class DayAdjustmentService {
     }
 
     private void apply(AttendanceDay day, SavedDayAdjustment saved) {
+        List<String> originalPunches = day.getPunches() == null ? new ArrayList<>() : new ArrayList<>(day.getPunches());
         day.setTimeIn(saved.getTimeIn());
         day.setTimeOut(saved.getTimeOut());
-        List<String> punches = new ArrayList<>();
-        if (saved.getTimeIn() != null && !saved.getTimeIn().isBlank()) {
-            punches.add(saved.getTimeIn());
+        if (originalPunches.size() > 2) {
+            day.setPunches(originalPunches);
+            day.setMultiplePunches(true);
+            day.setWorkedHours(WorkedHoursCalculator.hoursBetween(saved.getTimeIn(), saved.getTimeOut()));
+        } else {
+            List<String> punches = new ArrayList<>();
+            if (saved.getTimeIn() != null && !saved.getTimeIn().isBlank()) {
+                punches.add(saved.getTimeIn());
+            }
+            if (saved.getTimeOut() != null && !saved.getTimeOut().isBlank()) {
+                punches.add(saved.getTimeOut());
+            }
+            day.setPunches(punches);
+            WorkedHoursCalculator.apply(day);
         }
-        if (saved.getTimeOut() != null && !saved.getTimeOut().isBlank()) {
-            punches.add(saved.getTimeOut());
-        }
-        day.setPunches(punches);
-        WorkedHoursCalculator.apply(day);
         day.setCredit(saved.getCredit() == null ? DayCredit.WORKED : saved.getCredit());
         day.setStatus(saved.getStatus() == null ? DayStatus.PRESENT : saved.getStatus());
         day.setNotes("Kept from UI adjustment");
